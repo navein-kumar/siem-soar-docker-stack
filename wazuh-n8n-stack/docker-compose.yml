@@ -210,6 +210,7 @@ services:
       - N8N_PORT=5678
       - N8N_PROXY_HOPS=1
       - N8N_PUSH_BACKEND=websocket
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
 
   redis:
     image: redis:latest

@@ -1,0 +1,261 @@
+services:
+  # ── Cassandra (TheHive database) ──
+  cassandra:
+    image: cassandra:4.1
+    hostname: cassandra
+    restart: unless-stopped
+    mem_limit: 2048m
+    environment:
+      - MAX_HEAP_SIZE=1024M
+      - HEAP_NEWSIZE=256M
+      - CASSANDRA_CLUSTER_NAME=thp
+    volumes:
+      - ./data/cassandra/data:/var/lib/cassandra
+      - ./data/cassandra/logs:/var/log/cassandra
+
+  # ── Elasticsearch (shared by TheHive + Cortex) ──
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.15
+    hostname: elasticsearch
+    restart: unless-stopped
+    mem_limit: 2048m
+    environment:
+      - discovery.type=single-node
+      - cluster.name=hive
+      - http.host=0.0.0.0
+      - transport.host=0.0.0.0
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./data/elasticsearch/data:/usr/share/elasticsearch/data
+      - ./data/elasticsearch/logs:/usr/share/elasticsearch/logs
+
+  # ── MinIO S3 Storage (TheHive file storage) ──
+  minio:
+    image: minio/minio:latest
+    hostname: minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - ./data/minio:/data
+
+  # ── TheHive 5 ──
+  thehive:
+    image: strangebee/thehive:5.2
+    hostname: thehive
+    restart: unless-stopped
+    depends_on:
+      - cassandra
+      - elasticsearch
+      - minio
+    mem_limit: 2048m
+    environment:
+      - JVM_OPTS=-Xms1024M -Xmx1024M
+    command:
+      - --secret
+      - thehive1234
+      - --cql-hostnames
+      - cassandra
+      - --index-backend
+      - elasticsearch
+      - --es-hostnames
+      - elasticsearch
+      - --s3-endpoint
+      - http://minio:9000
+      - --s3-access-key
+      - minioadmin
+      - --s3-secret-key
+      - minioadmin
+      - --s3-use-path-access-style
+      - --cortex-port
+      - "9001"
+      - --cortex-keys
+      - "Ws1/iPMY7iv8ivr+JRzN63gPCqGoDmtY"
+    volumes:
+      - ./data/thehive/data:/opt/thp/thehive/data
+      - ./data/thehive/files:/opt/thp/thehive/files
+      - ./data/thehive/index:/opt/thp/thehive/index
+      - ./data/thehive/logs:/var/log/thehive
+
+  # ── Cortex (Analysis Engine) ──
+  cortex:
+    image: thehiveproject/cortex:3.1.1
+    hostname: cortex
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    mem_limit: 1024m
+    command:
+      - --es-uri
+      - http://elasticsearch:9200
+      - --job-directory
+      - /tmp/cortex-jobs
+      - --docker-job-directory
+      - /tmp/cortex-jobs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/cortex-jobs:/tmp/cortex-jobs
+      - ./config/cortex-application.conf:/etc/cortex/application.conf
+      - ./data/cortex/logs:/var/log/cortex
+
+  # ── MISP Redis (Valkey) ──
+  misp-redis:
+    image: valkey/valkey:7.2
+    hostname: misp-redis
+    restart: always
+    command: "--requirepass 'redispassword' --maxmemory 2gb --maxmemory-policy allkeys-lru --save 900 1 --save 300 10 --save 60 10000"
+    healthcheck:
+      test: "valkey-cli -a 'redispassword' -p 6379 ping | grep -q PONG || exit 1"
+      interval: 2s
+      timeout: 1s
+      retries: 3
+      start_period: 5s
+    volumes:
+      - ./data/misp-redis:/data
+
+  # ── MISP MariaDB ──
+  misp-db:
+    image: mariadb:10.11
+    hostname: misp-db
+    restart: always
+    environment:
+      - MYSQL_USER=misp
+      - MYSQL_PASSWORD=example
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=misp
+    command: >
+      --innodb-buffer-pool-size=2048M
+      --innodb-change-buffering=none
+      --innodb-io-capacity=2000
+      --innodb-io-capacity-max=4000
+      --innodb-log-file-size=1G
+      --innodb-read-io-threads=16
+      --innodb-stats-persistent=ON
+      --innodb-write-io-threads=8
+    volumes:
+      - ./data/misp-db:/var/lib/mysql
+    cap_add:
+      - SYS_NICE
+    healthcheck:
+      test: mysqladmin --user=$$MYSQL_USER --password=$$MYSQL_PASSWORD status
+      interval: 2s
+      timeout: 1s
+      retries: 3
+      start_period: 30s
+
+  # ── MISP Core ──
+  misp-core:
+    image: ghcr.io/misp/misp-docker/misp-core:latest
+    hostname: misp-core
+    restart: always
+    depends_on:
+      - misp-db
+      - misp-redis
+    cap_add:
+      - AUDIT_WRITE
+    ports:
+      - "8446:443"
+    environment:
+      - BASE_URL=https://173.212.233.86:8446
+      - ADMIN_EMAIL=admin@codesec.in
+      - ADMIN_PASSWORD=AdminMisp@431
+      - ADMIN_ORG=
+      - ADMIN_ORG_UUID=
+      - ADMIN_KEY=
+      - GPG_PASSPHRASE=
+      - CRON_USER_ID=
+      - ENABLE_DB_SETTINGS=
+      - ENCRYPTION_KEY=
+      - ENABLE_BACKGROUND_UPDATES=true
+      - ATTACHMENTS_DIR=
+      - DISABLE_IPV6=
+      - DISABLE_SSL_REDIRECT=
+      - DISABLE_CA_REFRESH=
+      - MISP_BACKGROUND_JOBS_QUEUE_TYPE=default
+      - MYSQL_HOST=misp-db
+      - MYSQL_PORT=3306
+      - MYSQL_USER=misp
+      - MYSQL_PASSWORD=example
+      - MYSQL_DATABASE=misp
+      - REDIS_HOST=misp-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=redispassword
+      - MISP_CAKE_CORE_CACHE_TYPE=Redis
+      - MISP_CAKE_DEFAULT_CACHE_TYPE=Redis
+      - DEBUG=0
+      - PHP_MEMORY_LIMIT=2048M
+      - PHP_MAX_EXECUTION_TIME=300
+      - PHP_UPLOAD_MAX_FILESIZE=50M
+      - PHP_POST_MAX_SIZE=50M
+      - PHP_MAX_INPUT_TIME=600
+      - PHP_MAX_FILE_UPLOADS=100
+      - PHP_FCGI_CHILDREN=5
+      - PHP_FCGI_START_SERVERS=2
+      - PHP_FCGI_SPARE_SERVERS=1
+      - PHP_FCGI_MAX_REQUESTS=0
+      - PHP_SESSION_TIMEOUT=60
+      - PHP_SESSION_COOKIE_TIMEOUT=10080
+      - PHP_SESSION_DEFAULTS=php
+      - PHP_SESSION_AUTO_REGENERATE=false
+      - PHP_SESSION_CHECK_AGENT=false
+      - PHP_SESSION_COOKIE_SECURE=true
+      - PHP_SESSION_COOKIE_DOMAIN=
+      - PHP_SESSION_COOKIE_SAMESITE=None
+      - PHP_TIMEZONE=UTC
+      - FASTCGI_READ_TIMEOUT=600s
+      - FASTCGI_SEND_TIMEOUT=600s
+      - FASTCGI_CONNECT_TIMEOUT=600s
+      - NGINX_CLIENT_MAX_BODY_SIZE=50M
+      - "CONTENT_SECURITY_POLICY=default-src 'self' data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'self' https://wazuh.wincloudpms.net https://*.wincloudpms.net; worker-src 'self'; child-src 'self'; frame-src 'self'; base-uri 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; connect-src 'self'; manifest-src 'none'; upgrade-insecure-requests"
+      - X_FRAME_OPTIONS=ALLOWALL
+    volumes:
+      - ./data/misp-core/configs:/var/www/MISP/app/Config
+      - ./data/misp-core/logs:/var/www/MISP/app/tmp/logs
+      - ./data/misp-core/files:/var/www/MISP/app/files
+      - ./data/misp-core/ssl:/etc/nginx/certs
+      - ./data/misp-core/gnupg:/var/www/MISP/.gnupg
+
+  # ── MISP Modules ──
+  misp-modules:
+    image: ghcr.io/misp/misp-docker/misp-modules:latest
+    hostname: misp-modules
+    restart: always
+    depends_on:
+      - misp-core
+    healthcheck:
+      test: "/bin/bash -c '</dev/tcp/localhost/6666'"
+      interval: 2s
+      timeout: 1s
+      retries: 3
+      start_period: 5s
+
+  # ── Nginx SSL Reverse Proxy (TheHive + Cortex) ──
+  nginx:
+    image: nginx:alpine
+    hostname: nginx-cti
+    restart: unless-stopped
+    ports:
+      - "8444:8444"
+      - "8445:8445"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - thehive
+      - cortex
+
+# Access URLs:
+# TheHive:       https://<IP>:8444  (admin@thehive.local / secret)
+# Cortex:        https://<IP>:8445
+# MISP:          https://<IP>:8446  (admin@codesec.in / AdminMisp@431)

@@ -3,9 +3,19 @@
 Complete security operations stack running on Docker.
 
 ```
-wazuh-n8n-stack/              Wazuh SIEM + N8N SOAR
+wazuh-n8n-multinode/          Wazuh SIEM (multi-node) + N8N SOAR    [Enterprise]
+wazuh-n8n-singlenode/         Wazuh SIEM (single-node) + N8N SOAR   [Small clients]
 hive-cortex-misp-stack/       TheHive IR + Cortex + MISP CTI
 ```
+
+## Which Wazuh Stack?
+
+| Stack | Indexers | Manager | RAM | Use case |
+|---|---|---|---|---|
+| **[wazuh-n8n-multinode](wazuh-n8n-multinode/)** | 3 (HA cluster) | Master + Worker | ~5 GB | Enterprise, 100+ agents, fault tolerance |
+| **[wazuh-n8n-singlenode](wazuh-n8n-singlenode/)** | 1 | 1 Manager | ~2 GB | Small clients, <50 agents, dev/testing |
+
+Both include N8N SOAR with Redis, SSL reverse proxy, and webhook integration.
 
 ## Port Map
 
@@ -31,32 +41,38 @@ git clone https://github.com/navein-kumar/siem-soar-docker-stack.git
 cd siem-soar-docker-stack
 ```
 
-### 2. Deploy Wazuh + N8N
+### 2a. Deploy Wazuh Multi-Node (Enterprise)
 
 ```bash
-cd wazuh-n8n-stack
+cd wazuh-n8n-multinode
 
-# Create folders
 chmod +x setup-folders.sh
 sudo bash setup-folders.sh
 
-# Generate Wazuh SSL certs
 docker-compose -f generate-indexer-certs.yml run --rm generator
-
-# Start
 docker-compose up -d
 ```
 
-### 3. Deploy TheHive + Cortex + MISP
+### 2b. Deploy Wazuh Single-Node (Small Client)
+
+```bash
+cd wazuh-n8n-singlenode
+
+chmod +x setup-folders.sh
+sudo bash setup-folders.sh
+
+docker-compose -f generate-indexer-certs.yml run --rm generator
+docker-compose up -d
+```
+
+### 3. Deploy TheHive + Cortex + MISP (Optional)
 
 ```bash
 cd ../hive-cortex-misp-stack
 
-# Create folders
 chmod +x setup-folders.sh
 sudo bash setup-folders.sh
 
-# Start
 docker-compose up -d
 ```
 
@@ -88,6 +104,8 @@ curl -sk https://localhost:8446 -w '%{http_code}\n' -o /dev/null     # MISP
 
 ## Architecture
 
+### Multi-Node (Enterprise)
+
 ```
                     Internet / Agents
                           |
@@ -109,24 +127,40 @@ curl -sk https://localhost:8446 -w '%{http_code}\n' -o /dev/null     # MISP
                      [MISP :8446]  (threat intel feeds)
 ```
 
+### Single-Node (Small Client)
+
+```
+              Internet / Agents
+                    |
+              [Wazuh Manager]
+              1514 / 514 / 1515
+                    |
+              [Wazuh Indexer]  -->  [Wazuh Dashboard :443]
+                    |
+                    +--- alerts ---> [N8N :5678 webhook]
+                                          |
+                                    [Nginx SSL :8443]
+```
+
 ## Memory Requirements
 
-| Stack | Service | RAM |
-|---|---|---|
-| **Wazuh** | Indexer x3 | 3 GB |
-| | Master + Worker | 1 GB |
-| | Dashboard | 512 MB |
-| | N8N + Redis | 512 MB |
-| **CTI** | Cassandra | 2 GB |
-| | Elasticsearch | 2 GB |
-| | TheHive | 2 GB |
-| | Cortex | 1 GB |
-| | MISP + MariaDB | 1 GB |
-| | **Total** | **~13 GB** |
+| Stack | Component | Multi-Node | Single-Node |
+|---|---|---|---|
+| **Wazuh** | Indexer | 3 GB (x3) | 1 GB (x1) |
+| | Manager | 1 GB (master+worker) | 512 MB |
+| | Dashboard | 512 MB | 512 MB |
+| | N8N + Redis | 512 MB | 512 MB |
+| **CTI** | Cassandra | 2 GB | 2 GB |
+| | Elasticsearch | 2 GB | 2 GB |
+| | TheHive | 2 GB | 2 GB |
+| | Cortex | 1 GB | 1 GB |
+| | MISP + MariaDB | 1 GB | 1 GB |
+| | **Total** | **~13 GB** | **~11 GB** |
 
-> Recommended: 16 GB RAM minimum for running both stacks.
+> Multi-Node: 16 GB RAM minimum | Single-Node: 12 GB RAM minimum
 
 ## Stack Details
 
-- [Wazuh + N8N Stack](wazuh-n8n-stack/) - SIEM with multi-node indexer cluster, agent load balancer, and N8N SOAR
-- [TheHive + Cortex + MISP Stack](hive-cortex-misp-stack/) - Incident response, analysis engine, and threat intelligence
+- [Wazuh Multi-Node + N8N](wazuh-n8n-multinode/) - Multi-node indexer cluster, agent load balancer, N8N SOAR
+- [Wazuh Single-Node + N8N](wazuh-n8n-singlenode/) - Single indexer, single manager, N8N SOAR
+- [TheHive + Cortex + MISP](hive-cortex-misp-stack/) - Incident response, analysis engine, threat intelligence

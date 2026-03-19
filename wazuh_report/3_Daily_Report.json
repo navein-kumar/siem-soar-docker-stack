@@ -1,0 +1,260 @@
+{
+  "name": "3_Daily_Report",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e058328a-07ef-4620-ba0e-0948a7862f88",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://172.17.0.1:9200/wazuh-alerts-*/_search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "authorization",
+              "value": "Basic YWRtaW46bXBwN05ITk9tU3k4Y0FjMmlBcCpBaGdVYUU3aytsVEI="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"size\": 100,\n  \"query\": {\n    \"bool\": {\n      \"must\": [\n        {\n          \"bool\": {\n            \"should\": [\n              {\n                \"terms\": {\n                  \"rule.id\": [\n                    \"4663\",\n                    \"4720\",\n                    \"92653\",\n                    \"62123\",\n                    \"92213\",\n                    \"31105\",\n                    \"31103\",\n                    \"31164\",\n                    \"31171\",\n                    \"31154\",\n                    \"67007\",\n                    \"31106\",\n                    \"60611\",\n                    \"60110\",\n                    \"99905\",\n                    \"92203\",\n                    \"31170\",\n                    \"31516\",\n                    \"31153\",\n                    \"62120\",\n                    \"61617\",\n                    \"61138\",\n                    \"62124\",\n                    \"31515\",\n                    \"60115\",\n                    \"60204\",\n                    \"4151\",\n                    \"60228\",\n                    \"60612\",\n                    \"100002\",\n                    \"61017\"\n                  ]\n                }\n              }\n            ]\n          }\n        },\n        {\n          \"range\": {\n            \"timestamp\": {\n              \"gte\": \"now-24h\"\n            }\n          }\n        }\n      ],\n      \"must_not\": [\n        {\n          \"term\": {\n            \"rule.id\": \"80254\"\n          }\n        }\n      ]\n    }\n  }\n}",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "ee831a29-3ab3-4dd9-be54-36c7d1bac15e",
+      "name": "HTTP Request",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "fromEmail": "siemalertmail@gmail.com",
+        "toEmail": "naveen@codesecure.in",
+        "subject": "Wazuh SIEM Daily Report",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n    <h2 style=\"color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;\">\n        🔐 Daily Security Event Report\n    </h2>\n    \n    <div style=\"background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n        <h3 style=\"margin-top: 0; color: #333;\">Report Summary</h3>\n        <ul style=\"list-style: none; padding: 0;\">\n            <li style=\"margin: 8px 0;\"><strong>Total Events:</strong> {{$json.total_records}}</li>\n            <li style=\"margin: 8px 0;\"><strong>Report Date:</strong> {{$json.report_date}}</li>\n            <li style=\"margin: 8px 0;\"><strong>Time Period:</strong> Last 24 hours</li>\n            <li style=\"margin: 8px 0;\"><strong>File Name:</strong> {{$json.file_name}}</li>\n        </ul>\n    </div>\n    \n    <p>Please find attached the detailed security event report. The report contains all security events from the last 24 hours in a formatted HTML table.</p>\n    \n    <div style=\"background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 5px; margin: 15px 0;\">\n        <p style=\"margin: 0; font-size: 14px; color: #856404;\">\n            📊 This report was automatically generated from SIEM system.\n        </p>\n    </div>\n    \n    <p style=\"color: #666; font-size: 12px; margin-top: 20px;\">\n        Generated on {{$now.format('MM-DD HH:mm:ss')}}\n    </p>\n</div>",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "security_report.pdf"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1360,
+        -32
+      ],
+      "id": "9975b08e-6e7f-4225-90cc-756596bc26ae",
+      "name": "Send email",
+      "webhookId": "53fa591d-e534-44cc-b73b-f69095ddda40",
+      "credentials": {
+        "smtp": {
+          "id": "tO6oKKz2a85ejEh4",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        208
+      ],
+      "id": "a752aa1f-ddcb-4426-8cca-97a69bdc5ad9",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "landscape",
+              "value": "true"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "security_report.pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1072,
+        0
+      ],
+      "id": "6c2d9a69-7f75-459d-915c-8eff44587523",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all()[0].json;\n\nreturn [{\n  json: input,\n  binary: {\n    data: {\n      data: Buffer.from(input.html_report, 'utf8'),\n      mimeType: 'text/html',\n      fileName: 'index.html'\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        0
+      ],
+      "id": "c8155ae5-51e1-4fe8-a06a-617ffb468641",
+      "name": "html_file"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all()[0].json;\nconst { table_data, total_records, columns, generated_at } = input;\n\n// Generate table headers (clean up unwanted columns)\nconst cleanColumns = columns.filter(col => \n  !col.includes('row_number') && \n  !col.includes('rule_mitre_id') && \n  !col.includes('location') && \n  !col.includes('decoder_name')\n);\n\nconst tableHeaders = cleanColumns.map(col => {\n  let displayName = col.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());\n  // Simplify some column names\n  if (displayName.includes('Data Win')) displayName = displayName.replace('Data Win ', '');\n  if (displayName.includes('System ')) displayName = displayName.replace('System ', '');\n  if (displayName.includes('Eventdata ')) displayName = displayName.replace('Eventdata ', '');\n  return `<th>${displayName}</th>`;\n}).join('');\n\n// Generate table rows with cleaned data\nconst tableRows = table_data.map((row, index) => {\n  const cells = cleanColumns.map(col => {\n    const value = row[col] || '';\n    const displayValue = String(value).length > 500 ? \n      String(value).substring(0, 47) + '...' : String(value);\n    return `<td>${displayValue}</td>`;\n  }).join('');\n  return `<tr>${cells}</tr>`;\n}).join('');\n\n// IST timezone dates\nconst istDate = new Date().toLocaleDateString('en-IN', {\n  timeZone: 'Asia/Kolkata',\n  day: '2-digit',\n  month: '2-digit',\n  year: 'numeric'\n});\n\nconst istTime = new Date().toLocaleTimeString('en-IN', {\n  timeZone: 'Asia/Kolkata',\n  hour12: true,\n  hour: '2-digit',\n  minute: '2-digit',\n  second: '2-digit'\n});\n\nconst istDateTime = new Date().toLocaleString('en-IN', {\n  timeZone: 'Asia/Kolkata',\n  day: '2-digit',\n  month: '2-digit',\n  year: 'numeric',\n  hour: '2-digit',\n  minute: '2-digit',\n  second: '2-digit',\n  hour12: true\n});\n\nconst htmlReport = `<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Security Event Report</title><style>@page{size:A4 landscape;margin:0.3in}*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:9px;color:#333;background:#fff;padding:10px}.container{max-width:100%;background:white;padding:15px}.header{text-align:center;margin-bottom:15px;border-bottom:2px solid #007bff;padding-bottom:10px}.header h1{color:#007bff;font-size:18px;margin-bottom:5px;font-weight:bold}.header h2{color:#666;font-size:12px;margin-bottom:10px}.header-info{display:flex;justify-content:center;gap:20px;font-size:9px;color:#555;margin-bottom:15px}.info-item{display:flex;flex-direction:column;align-items:center}.info-label{font-weight:bold;color:#007bff;margin-bottom:2px;font-size:8px}.table-container{width:100%}table{width:100%;border-collapse:collapse;font-size:7px;background:white;table-layout:fixed}th{background:#007bff;color:white;padding:3px 2px;text-align:left;font-weight:bold;font-size:7px;white-space:nowrap;border:1px solid #0056b3}td{padding:3px 2px;border:1px solid #ddd;vertical-align:top;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis;font-size:6px}tr:nth-child(even){background:#f8f9fa}.footer{margin-top:10px;text-align:center;border-top:1px solid #ddd;padding-top:8px;font-size:7px;color:#666}</style></head><body><div class=\"container\"><div class=\"header\"><h1>🔐 Wazuh SIEM Security Event Report</h1><h2>Timeline: Last 24 Hours Analysis</h2><div class=\"header-info\"><div class=\"info-item\"><span class=\"info-label\">Report Date</span><span>${istDate}</span></div><div class=\"info-item\"><span class=\"info-label\">Generation Time (IST)</span><span>${istTime}</span></div><div class=\"info-item\"><span class=\"info-label\">Total Records</span><span>${total_records}</span></div></div></div><div class=\"table-container\"><table><thead><tr>${tableHeaders}</tr></thead><tbody>${tableRows}</tbody></table></div><div class=\"footer\"><p><strong>Generated from SIEM System</strong> | Event List ID: 34661620-bac3-11f0-bb75-9b9e70aaad57</p><p>Report generated: ${istDateTime}</p></div></div></body></html>`;\n\nreturn [{\n  json: {\n    html_report: htmlReport,\n    total_records: total_records,\n    report_date: istDate,\n    file_name: `security_report_${new Date().toISOString().split('T')[0].replace(/-/g, '')}.html`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "889551c7-1632-4bb8-8783-32b0bb73183e",
+      "name": "html_generations"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the search results from HTTP Request\nconst searchData = $input.all()[0].json;\nconst hits = searchData.hits.hits;\n\n// Helper function to safely get nested values\nfunction getValue(obj, path, defaultValue = '') {\n  try {\n    return path.split('.').reduce((current, key) => {\n      return current && current[key] !== undefined ? current[key] : defaultValue;\n    }, obj);\n  } catch {\n    return defaultValue;\n  }\n}\n\n// Convert each hit to a table row\nconst tableData = hits.map((hit, index) => {\n  const source = hit._source;\n  \n  return {\n    // Row number\n    row_number: index + 1,\n    \n    // Timestamp\n//timestamp: source.timestamp || '',\n    \n    // System info\n    system_time: getValue(source, 'data.win.system.systemTime'),\n    agent_name: getValue(source, 'agent.name'),\n    computer: getValue(source, 'data.win.system.computer'),\n    \n    // Network info  \n    ip_address: getValue(source, 'data.win.eventdata.ipAddress'),\n    ip_port: getValue(source, 'data.win.eventdata.ipPort'),\n    workstation_name: getValue(source, 'data.win.eventdata.workstationName'),\n    \n    // Event details\n    event_id: getValue(source, 'data.win.system.eventID'),\n    object_Name: getValue(source, 'data.win.eventdata.objectName'),\n    subject_UserName: getValue(source, 'data.win.eventdata.subjectUserName'),\n    severity_value: getValue(source, 'data.win.system.severityValue'),\n    \n    // Rule info\n    rule_id: getValue(source, 'rule.id'),\n    rule_level: getValue(source, 'rule.level'),\n    rule_description: getValue(source, 'rule.description'),\n    \n    // User info\n    target_user_name: getValue(source, 'data.win.eventdata.targetUserName'),\n    \n    // Additional fields (add more as needed)\n    rule_mitre_id: getValue(source, 'rule.mitre.id'),\n    rule_mitre_technique: getValue(source, 'rule.mitre.technique'),\n    location: getValue(source, 'location'),\n    decoder_name: getValue(source, 'decoder.name')\n  };\n});\n\n// Return the table data with summary info\nreturn {\n  table_data: tableData,\n  total_records: tableData.length,\n  columns: [\n    'row_number', 'system_time', 'agent_name', 'computer',\n    'ip_address', 'ip_port', 'workstation_name', 'event_id', 'severity_value',\n    'rule_id', 'rule_level', 'rule_description', 'target_user_name',\n    'object_Name','subject_UserName', 'location', 'decoder_name'\n  ],\n  generated_at: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "2af516cb-be84-4191-95bc-9d3034bb7417",
+      "name": "table_field"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "table_field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "html_file": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "html_generations": {
+      "main": [
+        [
+          {
+            "node": "html_file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "table_field": {
+      "main": [
+        [
+          {
+            "node": "html_generations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "44df7f0d-0618-430e-82b8-512b6891b762",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "75f4fc027711f48fd0000f8bb37b644e62b77085e3e4ded32482028843dc21ca"
+  },
+  "id": "oUS4kdVNStFi7oCR",
+  "tags": []
+}

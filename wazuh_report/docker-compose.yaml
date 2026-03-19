@@ -1,0 +1,16 @@
+#pdf convert
+version: "3.8"
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg
+    ports:
+      - "3000:3000"
+    restart: always
+    shm_size: "1gb"
+    command:
+      - "gotenberg"
+      - "--api-body-limit=100MB"
+      - "--api-timeout=120s"
+      - "--chromium-max-queue-size=50"

@@ -1,3 +1,9 @@
 .claude/
 *.log
 data/
+
+# Report artifacts
+*.pdf
+*.png
+*.txt
+report-engine/output/

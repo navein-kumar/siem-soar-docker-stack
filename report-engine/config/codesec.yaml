@@ -1,0 +1,44 @@
+client_name: "Codesec Technologies"
+client_address: "Chennai, Tamil Nadu, India"
+logo_url: "https://codesecure.in/images/codesec-logo1.png"
+
+opensearch_dashboard:
+  url: "https://wazuh.dashboard:5601"
+  username: "admin"
+  password: "SecretPassword"
+
+gotenberg_url: "http://gotenberg:3000"
+
+email:
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  from_email: "siemalertmail@gmail.com"
+  password: "your-app-password"
+  to:
+    - "naveen@codesecure.in"
+  subject: "{client_name} - Daily Security Report - {date}"
+
+# Each section = one page in the PDF
+# url: relative path to OpenSearch Dashboard page
+# wait_for: CSS selector to wait for before screenshotting (ensures data loaded)
+# wait_time: extra seconds to wait after selector appears (for animations)
+sections:
+  - name: "Threat Overview"
+    url: "/app/wz-home"
+    wait_for: ".euiFlexGroup"
+    wait_time: 5
+
+  - name: "Vulnerability Detection"
+    url: "/app/vulnerability-detection#/inventory"
+    wait_for: ".euiFlexGroup"
+    wait_time: 8
+
+  - name: "MITRE ATT&CK"
+    url: "/app/mitre-attack#/framework"
+    wait_for: ".euiFlexGroup"
+    wait_time: 8
+
+  - name: "File Integrity Monitoring"
+    url: "/app/file-integrity-monitoring"
+    wait_for: ".euiFlexGroup"
+    wait_time: 8

@@ -1,0 +1,46 @@
+<div class="page" style="padding:0;overflow:hidden;position:relative;background:#1B2A4A">
+  <!-- Geometric accents -->
+  <div style="position:absolute;top:-100px;right:-100px;width:450px;height:450px;border-radius:50%;background:linear-gradient(135deg,#0D7377,#14919B);opacity:0.15"></div>
+  <div style="position:absolute;bottom:-150px;left:-100px;width:400px;height:400px;border-radius:50%;background:linear-gradient(135deg,#14919B,#0D7377);opacity:0.1"></div>
+  <!-- Top accent -->
+  <div style="height:5px;background:linear-gradient(90deg,#0D7377,#14919B,#32DBC6)"></div>
+
+  <div style="position:relative;z-index:1;padding:60px 50px 40px">
+    <!-- Logo -->
+    {% if logo_url %}
+    <div style="margin-bottom:40px;display:inline-block;background:#fff;padding:6px 12px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15)">
+      <img src="{{ logo_url }}" style="height:40px;display:block" onerror="this.parentElement.style.display='none'"/>
+    </div>
+    {% endif %}
+
+    <!-- Title -->
+    <div style="margin-bottom:50px">
+      <div style="font-size:14px;color:#14919B;text-transform:uppercase;letter-spacing:4px;font-weight:600;margin-bottom:14px">Security Report</div>
+      <h1 style="font-size:48px;font-weight:800;color:#fff;line-height:1.05;margin-bottom:0">Threat</h1>
+      <h1 style="font-size:48px;font-weight:800;color:#14919B;line-height:1.05;margin-bottom:16px">Hunting</h1>
+      <div style="width:50px;height:4px;background:#14919B;border-radius:2px"></div>
+    </div>
+
+    <!-- Subtitle -->
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);letter-spacing:1px;margin-bottom:40px">Daily Security Alert Analysis &bull; Last 24 Hours</p>
+
+    <!-- Info grid -->
+    <div style="display:flex;gap:60px;margin-bottom:40px">
+      <div style="border-left:2px solid #14919B;padding-left:14px">
+        <div style="font-size:7px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.35);margin-bottom:6px">Prepared For</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:3px">{{ client_name }}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.5)">{{ client_address }}</div>
+      </div>
+      <div style="border-left:2px solid rgba(255,255,255,0.1);padding-left:14px">
+        <div style="font-size:7px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.35);margin-bottom:6px">Period</div>
+        <div style="font-size:10px;font-weight:600;color:#fff">{{ from_date }}</div>
+        <div style="font-size:10px;font-weight:600;color:#fff">{{ to_date }}</div>
+      </div>
+      <div style="border-left:2px solid rgba(255,255,255,0.1);padding-left:14px">
+        <div style="font-size:7px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.35);margin-bottom:6px">Generated</div>
+        <div style="font-size:10px;font-weight:600;color:#fff">{{ generated_date }}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.5)">{{ generated_time }} IST</div>
+      </div>
+    </div>
+  </div>
+</div>

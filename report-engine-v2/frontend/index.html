@@ -281,7 +281,7 @@ function selectChartColor(el, color) {
   if(el.classList) el.classList.add('selected');
   // Re-render if chart exists
   if(currentChart && window._lastChartData) {
-    renderChart(window._lastChartData, document.getElementById('agg-chart-type').value, document.getElementById('agg-field').value);
+    renderChart(window._lastChartData, document.getElementById('chart-type').value, document.getElementById('agg-field').value);
   }
 }
 let editingTemplate = null;
@@ -589,7 +589,7 @@ function renderTable(data, field) {
 async function saveWidget() {
   const name = document.getElementById('widget-name').value || 'Widget ' + new Date().toLocaleTimeString();
   const field = document.getElementById('agg-field').value;
-  const chartType = document.getElementById('agg-chart-type').value;
+  const chartType = document.getElementById('chart-type').value;
   const size = parseInt(document.getElementById('agg-size').value) || 10;
   const showLabels = document.getElementById('show-labels').checked;
   const timeFrom = document.getElementById('time-from').value;
@@ -982,16 +982,18 @@ async function previewWidget(wid) {
   } catch(e) { /* silent */ }
 }
 
-async function previewWidget(wid) {
+async function editWidgetInQuery(wid) {
   try {
     const r = await fetch(API+'/widgets').then(r=>r.json());
     const w = r.widgets.find(x=>x.id===wid);
     if (!w) return;
     const agg = typeof w.agg_config === 'string' ? JSON.parse(w.agg_config) : w.agg_config;
     showTab('query');
-    document.getElementById('agg-field').value = agg.group_by || '';
+    document.getElementById('agg-field').value = agg.field || agg.group_by || '';
     document.getElementById('chart-type').value = agg.chart_type || 'bar';
     document.getElementById('agg-size').value = agg.size || 10;
+    document.getElementById('widget-name').value = w.name || '';
+    if (agg.color) { chartColor = agg.color; }
     runAggregation();
   } catch(e) { toast('Error loading widget','red'); }
 }

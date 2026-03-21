@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codesec Report Engine</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif}
+.tab-active{border-bottom:3px solid #0D7377;color:#0D7377;font-weight:600}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border:1px solid #e5e7eb}
+.btn{padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;transition:all 0.15s}
+.btn-primary{background:#0D7377;color:#fff}.btn-primary:hover{background:#0a5c5f}
+.btn-danger{background:#BD271E;color:#fff}.btn-danger:hover{background:#9a1f17}
+.btn-outline{background:#fff;color:#0D7377;border:1px solid #0D7377}.btn-outline:hover{background:#f0fafa}
+.btn-secondary{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}.btn-secondary:hover{background:#e5e7eb}
+.filter-row{display:flex;gap:6px;align-items:center;padding:8px;background:#f9fafb;border-radius:8px;margin-bottom:6px;overflow:hidden;flex-wrap:nowrap} .filter-row select{min-width:0;flex-shrink:1;font-size:12px} .filter-row input{min-width:0;flex-shrink:1}
+select,input[type=text],input[type=number]{padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;outline:none;max-width:100%} select{max-height:38px}
+select:focus,input:focus{border-color:#0D7377;box-shadow:0 0 0 2px rgba(13,115,119,0.15)}
+.section-card{border:2px dashed #d1d5db;border-radius:10px;padding:12px;margin-bottom:8px;cursor:grab;transition:all 0.15s}
+.section-card:hover{border-color:#0D7377;background:#f0fafa}
+.section-card.active{border-color:#0D7377;border-style:solid;background:#f0fafa}
+.color-swatch{width:32px;height:32px;border-radius:6px;cursor:pointer;border:2px solid transparent}
+.color-swatch.selected{border-color:#1a1a2e;box-shadow:0 0 0 2px #fff,0 0 0 4px #1a1a2e}
+.toast{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-weight:600;z-index:9999;animation:slideIn 0.3s}
+@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.loader{border:3px solid #e5e7eb;border-top:3px solid #0D7377;border-radius:50%;width:20px;height:20px;animation:spin 0.8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- NAV -->
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-800 rounded-lg flex items-center justify-center text-white font-bold text-sm">CS</div>
+    <span class="font-bold text-lg text-gray-800">Report Engine</span>
+    <span class="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-medium">v1.0</span>
+  </div>
+  <div class="flex gap-1">
+    <button onclick="showTab('dashboard')" id="tab-dashboard" class="px-4 py-2 text-sm tab-active">Dashboard</button>
+    <button onclick="showTab('query')" id="tab-query" class="px-4 py-2 text-sm">Query Builder</button>
+    <button onclick="showTab('widgets')" id="tab-widgets" class="px-4 py-2 text-sm">Widgets</button>
+    <button onclick="showTab('templates')" id="tab-templates" class="px-4 py-2 text-sm">Templates</button>
+    <button onclick="showTab('reports')" id="tab-reports" class="px-4 py-2 text-sm">Reports</button>
+  </div>
+  <div id="health-badge" class="text-xs px-3 py-1 rounded-full bg-gray-100">Connecting...</div>
+</nav>
+
+<!-- DASHBOARD TAB -->
+<div id="page-dashboard" class="p-6">
+  <div class="grid grid-cols-5 gap-4 mb-6">
+    <div class="card p-5 border-l-4 border-l-teal-600"><div class="text-xs text-gray-500 font-medium mb-1">Alerts (24h)</div><div id="os-alerts24h" class="text-2xl font-bold text-teal-700">--</div></div>
+    <div class="card p-5 border-l-4 border-l-red-500"><div class="text-xs text-gray-500 font-medium mb-1">Critical + High</div><div id="os-critical" class="text-2xl font-bold text-red-600">--</div></div>
+    <div class="card p-5 border-l-4 border-l-blue-500"><div class="text-xs text-gray-500 font-medium mb-1">Active Agents</div><div id="os-agents" class="text-2xl font-bold text-blue-600">--</div></div>
+    <div class="card p-5 border-l-4 border-l-purple-500"><div class="text-xs text-gray-500 font-medium mb-1">Templates</div><div id="os-templates" class="text-xl font-bold text-gray-800">--</div></div>
+    <div class="card p-5 border-l-4 border-l-orange-500"><div class="text-xs text-gray-500 font-medium mb-1">Reports</div><div id="os-reports" class="text-xl font-bold text-gray-800">--</div></div>
+  </div>
+  <div class="grid grid-cols-2 gap-4">
+    <div class="card p-5">
+      <h3 class="font-semibold text-gray-700 mb-3">Quick Actions</h3>
+      <div class="flex flex-col gap-2">
+        <button onclick="showTab('query')" class="btn btn-outline text-left">🔍 Query Builder — Explore & visualize data</button>
+        <button onclick="showTab('templates')" class="btn btn-outline text-left">📄 Template Builder — Create report templates</button>
+        <button onclick="generateQuickReport()" class="btn btn-primary text-left">⚡ Generate Quick Report — Daily summary PDF</button>
+      </div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-gray-700 mb-3">Recent Reports</h3>
+      <div id="recent-reports" class="text-sm text-gray-500">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- QUERY BUILDER TAB -->
+<div id="page-query" class="p-6 hidden">
+  <div class="grid grid-cols-3 gap-4">
+    <!-- Left: Filters -->
+    <div class="col-span-1">
+      <div class="card p-4 mb-4">
+        <h3 class="font-semibold text-gray-700 mb-3 flex items-center justify-between">
+          Filters
+          <button onclick="addFilter()" class="btn btn-primary text-xs">+ Add Filter</button>
+        </h3>
+        <div class="mb-3 flex gap-2">
+          <div class="flex-1">
+            <label class="text-xs text-gray-500">From</label>
+            <select id="time-from" class="w-full" onchange="runCurrentQuery()">
+              <option value="now-1h">Last 1 hour</option>
+              <option value="now-6h">Last 6 hours</option>
+              <option value="now-24h" selected>Last 24 hours</option>
+              <option value="now-7d">Last 7 days</option>
+              <option value="now-30d">Last 30 days</option>
+              <option value="now-90d">Last 90 days</option>
+            </select>
+          </div>
+        </div>
+        <div id="filters-container"></div>
+        <div class="mt-3 flex gap-2">
+          <button onclick="runCurrentQuery()" class="btn btn-primary flex-1">Run Query</button>
+          <button onclick="clearFilters()" class="btn btn-secondary">Clear</button>
+        </div>
+        <div id="query-result" class="mt-3 text-center text-sm text-gray-500"></div>
+      </div>
+      <!-- Aggregation -->
+      <div class="card p-4">
+        <h3 class="font-semibold text-gray-700 mb-3">Aggregation</h3>
+        <div class="mb-2">
+          <label class="text-xs text-gray-500">Group By</label>
+          <select id="agg-field" class="w-full" onchange="runAggregation()">
+            <option value="">Select field...</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="text-xs text-gray-500">Chart Type</label>
+          <select id="chart-type" class="w-full" onchange="runAggregation()">
+            <option value="bar">Bar Chart</option>
+            <option value="horizontalBar">Horizontal Bar</option>
+            <option value="doughnut">Donut Chart</option>
+            <option value="pie">Pie Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="polarArea">Polar Area</option>
+            <option value="radar">Radar Chart</option>
+            <option value="gradient">Gradient Area</option>
+            <option value="table">Data Table</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="text-xs text-gray-500">Top N</label>
+          <input type="number" id="agg-size" value="10" min="1" max="50" class="w-full" onchange="runAggregation()">
+        </div>
+        <button onclick="runAggregation()" class="btn btn-primary w-full">Visualize</button>
+        <button onclick="saveWidget()" class="btn btn-outline w-full mt-2">Save as Widget</button>
+      </div>
+    </div>
+    <!-- Right: Chart -->
+    <div class="col-span-2">
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-gray-700" id="chart-title">Chart Preview</h3>
+          <div id="chart-loader" class="hidden"><div class="loader"></div></div>
+        </div>
+        <div id="chart-container" style="position:relative;height:400px">
+          <canvas id="mainChart"></canvas>
+        </div>
+        <div id="table-container" class="hidden overflow-auto max-h-96"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- WIDGETS TAB -->
+<div id="page-widgets" class="p-6 hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold text-gray-800">Saved Widgets</h2>
+    <button onclick="showTab('query')" class="btn btn-primary">+ Create Widget</button>
+  </div>
+  <div id="widgets-grid" class="grid grid-cols-3 gap-4">
+    <div class="col-span-3 text-center text-gray-400 py-12">Loading widgets...</div>
+  </div>
+</div>
+
+<!-- TEMPLATES TAB -->
+<div id="page-templates" class="p-6 hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold text-gray-800">Report Templates</h2>
+    <button onclick="createTemplate()" class="btn btn-primary">+ New Template</button>
+  </div>
+  <div id="templates-list" class="grid grid-cols-3 gap-4"></div>
+
+  <!-- Template Editor (hidden by default) -->
+  <div id="template-editor" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-gray-800">Edit Template</h2>
+      <div class="flex gap-2">
+        <button onclick="previewTemplate()" class="btn btn-outline">Preview PDF</button>
+        <button onclick="saveTemplate()" class="btn btn-primary">Save Template</button>
+        <button onclick="closeEditor()" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-4">
+      <!-- Settings -->
+      <div class="card p-4">
+        <h3 class="font-semibold text-gray-700 mb-3">Template Settings</h3>
+        <div class="mb-3"><label class="text-xs text-gray-500">Template Name</label><input type="text" id="tpl-name" class="w-full" placeholder="Executive Daily Report"></div>
+        <div class="mb-3"><label class="text-xs text-gray-500">Cover Title</label><input type="text" id="tpl-cover-title" class="w-full" value="Security Threat Analysis Report"></div>
+        <div class="mb-3"><label class="text-xs text-gray-500">Cover Subtitle</label><input type="text" id="tpl-cover-subtitle" class="w-full" placeholder="Daily Security Alert Analysis"></div>
+        <div class="mb-3"><label class="text-xs text-gray-500">Company Name</label><input type="text" id="tpl-company" class="w-full" placeholder="Codesec Technologies"></div>
+        <div class="mb-3"><label class="text-xs text-gray-500">Logo URL</label><input type="text" id="tpl-logo" class="w-full" placeholder="https://..."></div>
+        <div class="mb-3">
+          <label class="text-xs text-gray-500 mb-1 block">Theme Color</label>
+          <div class="flex gap-2">
+            <div class="color-swatch selected" style="background:#1B2A4A" onclick="selectColor(this,'#1B2A4A')"></div>
+            <div class="color-swatch" style="background:#0A2463" onclick="selectColor(this,'#0A2463')"></div>
+            <div class="color-swatch" style="background:#2D0000" onclick="selectColor(this,'#2D0000')"></div>
+            <div class="color-swatch" style="background:#1a1a2e" onclick="selectColor(this,'#1a1a2e')"></div>
+            <div class="color-swatch" style="background:#0D7377" onclick="selectColor(this,'#0D7377')"></div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="text-xs text-gray-500 mb-1 block">Accent Color</label>
+          <div class="flex gap-2">
+            <div class="color-swatch selected" style="background:#0D7377" onclick="selectAccent(this,'#0D7377')"></div>
+            <div class="color-swatch" style="background:#3E92CC" onclick="selectAccent(this,'#3E92CC')"></div>
+            <div class="color-swatch" style="background:#BD271E" onclick="selectAccent(this,'#BD271E')"></div>
+            <div class="color-swatch" style="background:#e67e22" onclick="selectAccent(this,'#e67e22')"></div>
+            <div class="color-swatch" style="background:#9b59b6" onclick="selectAccent(this,'#9b59b6')"></div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="text-xs text-gray-500">Report Period</label>
+          <select id="tpl-period" class="w-full">
+            <option value="24h">Daily (24 hours)</option>
+            <option value="7d">Weekly (7 days)</option>
+            <option value="30d">Monthly (30 days)</option>
+            <option value="90d">Quarterly (90 days)</option>
+          </select>
+        </div>
+      </div>
+      <!-- Active Sections -->
+      <div class="card p-4">
+        <h3 class="font-semibold text-gray-700 mb-3">Active Sections</h3>
+        <div id="active-sections"></div>
+      </div>
+      <!-- Available Sections -->
+      <div class="card p-4">
+        <h3 class="font-semibold text-gray-700 mb-3">Available Sections</h3>
+        <div id="available-sections"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORTS TAB -->
+<div id="page-reports" class="p-6 hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold text-gray-800">Report Archive</h2>
+    <div class="flex gap-2">
+      <button data-delete-all class="btn text-xs" style="border:1px solid #e74c3c;color:#e74c3c;padding:8px 16px;cursor:pointer">🗑 Delete All</button>
+      <button onclick="generateQuickReport()" class="btn btn-primary">⚡ Generate Now</button>
+    </div>
+  </div>
+  <div id="reports-list" class="card overflow-hidden"></div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const API = '/api';
+let allFields = [];
+let currentChart = null;
+let editingTemplate = null;
+let selectedColor = '#1B2A4A';
+let selectedAccent = '#0D7377';
+
+const SECTIONS = [
+  {id:'executive_summary', name:'Executive Summary', desc:'Total alerts, severity distribution, timeline', icon:'📊'},
+  {id:'top_threats', name:'Top Threat Alerts', desc:'Level 12+ events grouped by rule', icon:'🔴'},
+  {id:'agents_risk', name:'Agents & Risk Assessment', desc:'Agent volumes, severity breakdown', icon:'🖥️'},
+  {id:'authentication', name:'Authentication Events', desc:'Login failures, successes, top users', icon:'🔐'},
+  {id:'source_ips', name:'Top Source IPs', desc:'Most active source IP addresses', icon:'🌐'},
+  {id:'vulnerability', name:'Vulnerability Detection', desc:'CVEs, affected agents', icon:'🛡️'},
+  {id:'fim', name:'File Integrity Monitoring', desc:'File changes, modified paths', icon:'📁'},
+  {id:'mitre', name:'MITRE ATT&CK Analysis', desc:'Techniques and tactics mapping', icon:'⚔️'},
+  {id:'compliance', name:'Regulatory Compliance', desc:'PCI-DSS, HIPAA, GDPR, NIST', icon:'📋'},
+  {id:'security_events', name:'Security Events Summary', desc:'All rules sorted by severity', icon:'📝'},
+];
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  try {
+    const h = await fetch(API+'/health').then(r=>r.json());
+    document.getElementById('health-badge').className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700';
+    document.getElementById('health-badge').textContent = 'Connected: ' + h.cluster;
+    document.getElementById('os-status').textContent = h.opensearch;
+  } catch(e) {
+    document.getElementById('health-badge').className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-700';
+    document.getElementById('health-badge').textContent = 'Disconnected';
+  }
+
+  // Load fields
+  try {
+    const f = await fetch(API+'/fields').then(r=>r.json());
+    allFields = f.fields.filter(x=>x.filterable);
+    populateFieldSelects();
+  } catch(e) {}
+
+  // Live metrics
+  try {
+    const q24 = await fetch(API+'/query', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({time_from:'now-24h'})}).then(r=>r.json());
+    document.getElementById('os-alerts24h').textContent = q24.total.toLocaleString();
+  } catch(e) {}
+  try {
+    const qc = await fetch(API+'/query', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:{range:{'rule.level':{gte:12}}},time_from:'now-24h'})}).then(r=>r.json());
+    document.getElementById('os-critical').textContent = qc.total.toLocaleString();
+  } catch(e) {}
+  try {
+    const qa = await fetch(API+'/aggregate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({group_by:'agent.name',time_from:'now-24h',size:50})}).then(r=>r.json());
+    document.getElementById('os-agents').textContent = qa.data.length;
+  } catch(e) {}
+
+  // Load templates count
+  try {
+    const t = await fetch(API+'/templates').then(r=>r.json());
+    document.getElementById('os-templates').textContent = t.templates.length;
+  } catch(e) {}
+
+  // Load reports
+  try {
+    const r = await fetch(API+'/reports').then(r=>r.json());
+    document.getElementById('os-reports').textContent = r.reports.length;
+    renderRecentReports(r.reports.slice(0,5));
+  } catch(e) {}
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function showTab(tab) {
+  ['dashboard','query','widgets','templates','reports'].forEach(t => {
+    document.getElementById('page-'+t).classList.toggle('hidden', t!==tab);
+    document.getElementById('tab-'+t).classList.toggle('tab-active', t===tab);
+  });
+  if (tab==='widgets') loadWidgets();
+  if (tab==='templates') loadTemplates();
+  if (tab==='reports') loadReports();
+}
+
+// ============================================================
+// FILTER BUILDER
+// ============================================================
+let filters = [];
+
+function addFilter() {
+  const id = Date.now();
+  filters.push({id, field:'', op:'is', value:''});
+  renderFilters();
+}
+
+function removeFilter(id) {
+  filters = filters.filter(f=>f.id!==id);
+  renderFilters();
+}
+
+function renderFilters() {
+  const c = document.getElementById('filters-container');
+  if (filters.length === 0) { c.innerHTML = '<div class="text-xs text-gray-400 text-center py-3">No filters — showing all alerts</div>'; return; }
+  c.innerHTML = filters.map((f,i) => `
+    <div class="filter-row">
+      ${i>0?'<select class="w-16" onchange="filters[${i}].logic=this.value"><option>AND</option><option>OR</option></select>':''}
+      <select class="flex-1" onchange="filters[${i}].field=this.value;loadFieldValues(${i})">
+        <option value="">Field...</option>
+        ${allFields.map(af=>`<option value="${af.field}" ${af.field===f.field?'selected':''}>${af.field}</option>`).join('')}
+      </select>
+      <select class="w-24" onchange="filters[${i}].op=this.value">
+        <option value="is" ${f.op==='is'?'selected':''}>is</option>
+        <option value="is_not" ${f.op==='is_not'?'selected':''}>is not</option>
+        <option value="gt" ${f.op==='gt'?'selected':''}>></option>
+        <option value="gte" ${f.op==='gte'?'selected':''}>>=</option>
+        <option value="lt" ${f.op==='lt'?'selected':''}><</option>
+        <option value="lte" ${f.op==='lte'?'selected':''}><=</option>
+        <option value="exists" ${f.op==='exists'?'selected':''}>exists</option>
+        <option value="contains" ${f.op==='contains'?'selected':''}>contains</option>
+      </select>
+      <input type="text" class="flex-1" placeholder="Value..." value="${f.value||''}" onchange="filters[${i}].value=this.value" list="vals-${i}">
+      <datalist id="vals-${i}"></datalist>
+      <button onclick="removeFilter(${f.id})" class="text-red-500 hover:text-red-700 font-bold">✕</button>
+    </div>
+  `).join('');
+}
+
+async function loadFieldValues(idx) {
+  const f = filters[idx];
+  if (!f.field) return;
+  try {
+    const r = await fetch(API+'/fields/'+encodeURIComponent(f.field)+'/values?size=20').then(r=>r.json());
+    const dl = document.getElementById('vals-'+idx);
+    if (dl) dl.innerHTML = r.values.map(v=>`<option value="${v}">`).join('');
+  } catch(e) {}
+}
+
+function buildQuery() {
+  if (filters.length === 0) return null;
+  const musts = [], mustNots = [];
+  for (const f of filters) {
+    if (!f.field || !f.value && f.op!=='exists') continue;
+    if (f.op === 'is') musts.push({term:{[f.field]:f.value}});
+    else if (f.op === 'is_not') mustNots.push({term:{[f.field]:f.value}});
+    else if (f.op === 'gt') musts.push({range:{[f.field]:{gt:f.value}}});
+    else if (f.op === 'gte') musts.push({range:{[f.field]:{gte:f.value}}});
+    else if (f.op === 'lt') musts.push({range:{[f.field]:{lt:f.value}}});
+    else if (f.op === 'lte') musts.push({range:{[f.field]:{lte:f.value}}});
+    else if (f.op === 'exists') musts.push({exists:{field:f.field}});
+    else if (f.op === 'contains') musts.push({wildcard:{[f.field]:'*'+f.value+'*'}});
+  }
+  const q = {bool:{}};
+  if (musts.length) q.bool.must = musts;
+  if (mustNots.length) q.bool.must_not = mustNots;
+  return Object.keys(q.bool).length ? q : null;
+}
+
+function clearFilters() { filters = []; renderFilters(); }
+
+// ============================================================
+// QUERY EXECUTION
+// ============================================================
+async function runCurrentQuery() {
+  const result = document.getElementById('query-result');
+  result.innerHTML = '<div class="loader"></div>';
+  try {
+    const q = buildQuery();
+    const timeFrom = document.getElementById('time-from').value;
+    const r = await fetch(API+'/query', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({query:q, time_from:timeFrom})
+    }).then(r=>r.json());
+    result.innerHTML = `<span class="font-bold text-teal-700">${r.total.toLocaleString()}</span> matching alerts <span class="text-xs text-gray-400">(${r.took_ms}ms)</span>`;
+  } catch(e) {
+    result.innerHTML = '<span class="text-red-500">Error: '+e.message+'</span>';
+  }
+}
+
+// ============================================================
+// AGGREGATION + CHARTS
+// ============================================================
+function populateFieldSelects() {
+  const s = document.getElementById('agg-field');
+  const popular = ['agent.name','rule.level','rule.description','rule.id','rule.groups','rule.mitre.technique','rule.mitre.tactic',
+    'data.win.eventdata.targetUserName','data.win.eventdata.ipAddress','rule.pci_dss','rule.hipaa','rule.gdpr','rule.nist_800_53'];
+  let html = '<option value="">Select field...</option>';
+  html += '<optgroup label="Popular Fields">';
+  popular.forEach(f => { if (allFields.find(af=>af.field===f)) html += `<option value="${f}">${f}</option>`; });
+  html += '</optgroup><optgroup label="All Fields">';
+  allFields.forEach(f => html += `<option value="${f.field}">${f.field} (${f.type})</option>`);
+  html += '</optgroup>';
+  s.innerHTML = html;
+}
+
+async function runAggregation() {
+  const field = document.getElementById('agg-field').value;
+  if (!field) return;
+  const chartType = document.getElementById('chart-type').value;
+  const size = parseInt(document.getElementById('agg-size').value) || 10;
+  const timeFrom = document.getElementById('time-from').value;
+
+  document.getElementById('chart-loader').classList.remove('hidden');
+  try {
+    const q = buildQuery();
+    const r = await fetch(API+'/aggregate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({query:q, group_by:field, size:size, time_from:timeFrom})
+    }).then(r=>r.json());
+
+    document.getElementById('chart-title').textContent = `${field} (${r.total.toLocaleString()} total)`;
+
+    if (chartType === 'table') {
+      renderTable(r.data, field);
+    } else {
+      renderChart(r.data, chartType, field);
+    }
+  } catch(e) {
+    toast('Error: '+e.message, 'red');
+  }
+  document.getElementById('chart-loader').classList.add('hidden');
+}
+
+const COLORS = ['#0D7377','#14919B','#BD271E','#E7664C','#D6BF57','#6DCCB1','#3498db','#9b59b6','#e67e22','#2ecc71','#1abc9c','#e74c3c','#f39c12','#8e44ad','#2c3e50','#1B2A4A','#c0392b','#27ae60','#2980b9','#f1c40f'];
+
+function renderChart(data, type, field) {
+  document.getElementById('chart-container').classList.remove('hidden');
+  document.getElementById('table-container').classList.add('hidden');
+  if (currentChart) currentChart.destroy();
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  const labels = data.map(d=>d.label);
+  const values = data.map(d=>d.value);
+  const isHorizontal = type === 'horizontalBar';
+  const isGradient = type === 'gradient';
+  let actualType = type;
+  if (isHorizontal) actualType = 'bar';
+  if (isGradient) actualType = 'line';
+
+  let datasets, opts = {};
+
+  if (type==='polarArea' || type==='radar') {
+    datasets = [{label:field, data:values, backgroundColor:COLORS.slice(0,data.length).map(c=>c+'CC'), borderColor:COLORS.slice(0,data.length), borderWidth:2, pointBackgroundColor:COLORS.slice(0,data.length)}];
+    opts = {plugins:{legend:{display:true,position:'right',labels:{font:{size:11},padding:12,usePointStyle:true}}}};
+    if (type==='radar') opts.scales = {r:{angleLines:{color:'#e5e7eb'},grid:{color:'#e5e7eb'},ticks:{font:{size:9}}}};
+  } else if (type==='doughnut'||type==='pie') {
+    datasets = [{data:values, backgroundColor:COLORS.slice(0,data.length), borderColor:'#fff', borderWidth:3, hoverOffset:8}];
+    opts = {cutout:type==='doughnut'?'55%':0, plugins:{legend:{display:true,position:'right',labels:{font:{size:11},padding:12,usePointStyle:true,pointStyle:'circle'}}}};
+  } else if (isGradient) {
+    const g = ctx.createLinearGradient(0,0,0,400);
+    g.addColorStop(0,'rgba(13,115,119,0.8)');
+    g.addColorStop(1,'rgba(13,115,119,0.05)');
+    datasets = [{label:field, data:values, backgroundColor:g, borderColor:'#0D7377', borderWidth:2.5, tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#0D7377', pointBorderColor:'#fff', pointBorderWidth:2, pointHoverRadius:6}];
+    opts = {plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{font:{size:10}}}}};
+  } else {
+    const bgColors = isHorizontal ? values.map((_,i) => COLORS[i%COLORS.length]) : '#0D7377';
+    datasets = [{label:field, data:values, backgroundColor:bgColors, borderColor:(type==='line')?'#0D7377':'transparent', borderWidth:(type==='line')?2.5:0, borderRadius:6, borderSkipped:false, tension:0.3, fill:type==='line', pointRadius:type==='line'?3:0, pointBackgroundColor:'#0D7377', barPercentage:0.7}];
+    opts = {indexAxis:isHorizontal?'y':'x', plugins:{legend:{display:false}}, scales:{x:{grid:{display:!isHorizontal,color:'rgba(0,0,0,0.06)'},ticks:{font:{size:10},maxRotation:45}},y:{grid:{display:isHorizontal,color:'rgba(0,0,0,0.06)'},ticks:{font:{size:10}}}}};
+  }
+
+  currentChart = new Chart(ctx, {
+    type: actualType, data: {labels, datasets},
+    options: {responsive:true, maintainAspectRatio:false, animation:{duration:600,easing:'easeOutQuart'}, interaction:{intersect:false,mode:'index'},
+      plugins:{...opts.plugins, tooltip:{backgroundColor:'rgba(26,26,46,0.95)',titleFont:{size:12,weight:'bold'},bodyFont:{size:11},padding:12,cornerRadius:8}},
+      ...opts, plugins:undefined
+    }
+  });
+  // Re-apply plugins after spread
+  currentChart.options.plugins = {...opts.plugins, tooltip:{backgroundColor:'rgba(26,26,46,0.95)',titleFont:{size:12,weight:'bold'},bodyFont:{size:11},padding:12,cornerRadius:8}};
+  currentChart.update();
+}
+
+function renderTable(data, field) {
+  document.getElementById('chart-container').classList.add('hidden');
+  document.getElementById('table-container').classList.remove('hidden');
+  let html = '<table class="w-full text-sm"><thead><tr class="bg-gray-800 text-white"><th class="p-2 text-left">#</th><th class="p-2 text-left">'+field+'</th><th class="p-2 text-right">Count</th></tr></thead><tbody>';
+  data.forEach((d,i) => {
+    html += `<tr class="${i%2?'bg-gray-50':''}"><td class="p-2 text-gray-400">${i+1}</td><td class="p-2 font-medium">${d.label}</td><td class="p-2 text-right font-bold">${d.value.toLocaleString()}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('table-container').innerHTML = html;
+}
+
+// ============================================================
+// SAVE WIDGET
+// ============================================================
+async function saveWidget() {
+  const field = document.getElementById('agg-field').value;
+  if (!field) { toast('Select a field first','red'); return; }
+  const name = prompt('Widget name:', field + ' chart');
+  if (!name) return;
+  try {
+    await fetch(API+'/widgets', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, query_dsl:buildQuery()||{}, agg_config:{group_by:field, size:parseInt(document.getElementById('agg-size').value), chart_type:document.getElementById('chart-type').value}, chart_type:document.getElementById('chart-type').value})
+    });
+    toast('Widget saved!','green');
+  } catch(e) { toast('Error saving','red'); }
+}
+
+// ============================================================
+// TEMPLATES
+// ============================================================
+async function loadTemplates() {
+  const r = await fetch(API+'/templates').then(r=>r.json());
+  const c = document.getElementById('templates-list');
+  if (r.templates.length === 0) {
+    c.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-12">No templates yet. Click "+ New Template" to create one.</div>';
+    return;
+  }
+  c.innerHTML = r.templates.sort((a,b) => {
+    const na = parseInt(a.name.match(/^(\d+)/)?.[1] || '999');
+    const nb = parseInt(b.name.match(/^(\d+)/)?.[1] || '999');
+    return na - nb || a.name.localeCompare(b.name);
+  }).map(t => `
+    <div class="card p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="w-6 h-6 rounded" style="background:${t.cover_color}"></div>
+        <h3 class="font-semibold text-gray-800">${t.name}</h3>
+      </div>
+      <p class="text-xs text-gray-500 mb-3">${t.description||'No description'}</p>
+      <div class="text-xs text-gray-400 mb-3">${JSON.parse(t.sections||'[]').length} sections</div>
+      <div class="flex gap-2 items-center mb-2">
+        <select id="period-${t.id}" class="text-xs" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;flex:1">
+          <option value="24h" ${t.name.toLowerCase().includes('daily')?'selected':''}>Last 24 Hours</option>
+          <option value="7d" ${t.name.toLowerCase().includes('weekly')?'selected':''}>Last 7 Days</option>
+          <option value="30d" ${t.name.toLowerCase().includes('monthly')?'selected':''}>Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="editTemplate('${t.id}')" class="btn btn-outline flex-1 text-xs">Edit</button>
+        <button onclick="generateFromTemplate('${t.id}',document.getElementById('period-${t.id}').value)" class="btn btn-primary flex-1 text-xs">Generate</button>
+        <button onclick="deleteTemplate('${t.id}')" class="btn btn-danger text-xs">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function createTemplate() {
+  editingTemplate = null;
+  document.getElementById('template-editor').classList.remove('hidden');
+  document.getElementById('templates-list').classList.add('hidden');
+  document.getElementById('tpl-name').value = '';
+  document.getElementById('tpl-cover-title').value = 'Security Threat Analysis Report';
+  document.getElementById('tpl-cover-subtitle').value = '';
+  document.getElementById('tpl-logo').value = 'https://codesecure.in/images/codesec-logo1.png';
+  document.getElementById('tpl-company').value = 'Codesec Technologies';
+  renderSections([]);
+}
+
+async function editTemplate(id) {
+  const t = await fetch(API+'/templates/'+id).then(r=>r.json());
+  editingTemplate = id;
+  document.getElementById('template-editor').classList.remove('hidden');
+  document.getElementById('templates-list').classList.add('hidden');
+  document.getElementById('tpl-name').value = t.name;
+  document.getElementById('tpl-cover-title').value = t.cover_title;
+  document.getElementById('tpl-cover-subtitle').value = t.cover_subtitle||'';
+  document.getElementById('tpl-logo').value = t.logo_url||'';
+  document.getElementById('tpl-company').value = t.description||'Codesec Technologies';
+  selectedColor = t.cover_color;
+  selectedAccent = t.cover_accent;
+  const sections = JSON.parse(t.sections||'[]');
+  renderSections(sections);
+}
+
+function renderSections(activeSections) {
+  const activeIds = activeSections.map(s => typeof s === 'string' ? s : s.id);
+  const ac = document.getElementById('active-sections');
+  const av = document.getElementById('available-sections');
+
+  if (activeIds.length === 0) {
+    ac.innerHTML = '<div class="text-xs text-gray-400 text-center py-6">Drag sections here or click + to add</div>';
+  } else {
+    ac.innerHTML = activeIds.map((sid,i) => {
+      const s = SECTIONS.find(x=>x.id===sid);
+      if (!s) return '';
+      return `<div class="section-card active flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-gray-400 text-xs font-bold">${i+1}</span>
+          <span>${s.icon} ${s.name}</span>
+        </div>
+        <div class="flex gap-1">
+          ${i>0?`<button onclick="moveSection(${i},-1)" class="text-xs text-gray-400 hover:text-gray-700">▲</button>`:''}
+          ${i<activeIds.length-1?`<button onclick="moveSection(${i},1)" class="text-xs text-gray-400 hover:text-gray-700">▼</button>`:''}
+          <button onclick="removeSection(${i})" class="text-xs text-red-400 hover:text-red-700">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  av.innerHTML = SECTIONS.filter(s => !activeIds.includes(s.id)).map(s => `
+    <div class="section-card flex items-center justify-between" onclick="addSection('${s.id}')">
+      <div>
+        <div class="font-medium text-sm">${s.icon} ${s.name}</div>
+        <div class="text-xs text-gray-400">${s.desc}</div>
+      </div>
+      <span class="text-teal-600 font-bold">+</span>
+    </div>
+  `).join('');
+
+  // Store current sections
+  window._activeSections = activeIds;
+}
+
+function addSection(id) {
+  const s = window._activeSections || [];
+  s.push(id);
+  renderSections(s);
+}
+
+function removeSection(idx) {
+  const s = window._activeSections || [];
+  s.splice(idx,1);
+  renderSections(s);
+}
+
+function moveSection(idx, dir) {
+  const s = window._activeSections || [];
+  const newIdx = idx+dir;
+  if (newIdx<0||newIdx>=s.length) return;
+  [s[idx],s[newIdx]] = [s[newIdx],s[idx]];
+  renderSections(s);
+}
+
+function selectColor(el,color) {
+  selectedColor = color;
+  el.parentElement.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function selectAccent(el,color) {
+  selectedAccent = color;
+  el.parentElement.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function saveTemplate() {
+  const data = {
+    name: document.getElementById('tpl-name').value || 'Untitled',
+    description: document.getElementById('tpl-company').value || 'Codesec Technologies',
+    cover_title: document.getElementById('tpl-cover-title').value,
+    cover_subtitle: document.getElementById('tpl-cover-subtitle').value,
+    cover_color: selectedColor,
+    cover_accent: selectedAccent,
+    logo_url: document.getElementById('tpl-logo').value,
+    sections: window._activeSections || []
+  };
+
+  try {
+    if (editingTemplate) {
+      await fetch(API+'/templates/'+editingTemplate, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    } else {
+      const r = await fetch(API+'/templates', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}).then(r=>r.json());
+      editingTemplate = r.id;
+    }
+    toast('Template saved!','green');
+  } catch(e) { toast('Error saving','red'); }
+}
+
+function closeEditor() {
+  document.getElementById('template-editor').classList.add('hidden');
+  document.getElementById('templates-list').classList.remove('hidden');
+  loadTemplates();
+}
+
+async function deleteTemplate(id) {
+  if (!confirm('Delete this template?')) return;
+  await fetch(API+'/templates/'+id, {method:'DELETE'});
+  loadTemplates();
+}
+
+// ============================================================
+// REPORT GENERATION
+// ============================================================
+async function generateFromTemplate(tid, periodOverride) {
+  // Use period from dropdown if in editor, otherwise use override or default
+  const periodEl = document.getElementById('tpl-period');
+  const p = periodOverride || (periodEl ? periodEl.value : '24h') || '24h';
+  toast('Generating report ('+p+')... please wait','blue');
+  try {
+    const r = await fetch(API+'/generate/'+tid+'?period='+p, {method:'POST'}).then(r=>r.json());
+    if (r.download_url) {
+      window.open(r.download_url,'_blank');
+      toast('Report generated! '+((r.size/1024).toFixed(0))+'KB','green');
+      loadReports();
+    } else {
+      toast(r.detail || r.message || 'Error generating','red');
+    }
+  } catch(e) { toast('Generation failed: '+e.message,'red'); }
+}
+
+async function generateQuickReport() {
+  toast('Generating quick report...','blue');
+  try {
+    const r = await fetch(API+'/generate/quick', {method:'POST'}).then(r=>r.json());
+    if (r.download_url) {
+      window.open(r.download_url,'_blank');
+      toast('Report ready!','green');
+    }
+  } catch(e) { toast('Error: '+e.message,'red'); }
+}
+
+async function previewTemplate() {
+  try {
+    await saveTemplate();
+  } catch(e) { /* ignore save errors */ }
+  if (editingTemplate) {
+    generateFromTemplate(editingTemplate);
+  } else {
+    toast('Save template first','red');
+  }
+}
+
+// ============================================================
+// REPORTS ARCHIVE
+// ============================================================
+async function loadReports() {
+  const r = await fetch(API+'/reports').then(r=>r.json());
+  const c = document.getElementById('reports-list');
+  if (r.reports.length === 0) {
+    c.innerHTML = '<div class="text-center text-gray-400 py-12">No reports generated yet</div>';
+    return;
+  }
+  let html = '<table class="w-full text-sm"><thead><tr class="bg-gray-800 text-white"><th class="p-3 text-left">Report</th><th class="p-3 text-left">Template</th><th class="p-3 text-left">Period</th><th class="p-3 text-left">Generated</th><th class="p-3 text-right">Size</th><th class="p-3">Action</th></tr></thead><tbody>';
+  r.reports.forEach((rpt,i) => {
+    html += `<tr class="${i%2?'bg-gray-50':''}">
+      <td class="p-3 font-medium">${rpt.filename}</td>
+      <td class="p-3">${rpt.template_name||'-'}</td>
+      <td class="p-3 text-xs">${rpt.period_from||'-'} → ${rpt.period_to||'-'}</td>
+      <td class="p-3 text-xs">${rpt.generated_at}</td>
+      <td class="p-3 text-right text-xs">${rpt.file_size ? (rpt.file_size/1024).toFixed(0)+'KB' : '-'}</td>
+      <td class="p-3 text-center"><a href="${API}/reports/${rpt.id}/download" class="btn btn-outline text-xs" target="_blank">Download</a> <button data-delete-report="${rpt.id}" class="btn text-xs" style="border:1px solid #e74c3c;color:#e74c3c;margin-left:4px;cursor:pointer">Delete</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  c.innerHTML = html;
+
+  // Bind delete buttons - no confirmation, instant delete
+  c.querySelectorAll('[data-delete-report]').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const rid = this.getAttribute('data-delete-report');
+      const row = this.closest('tr');
+      row.style.opacity = '0.3';
+      await fetch(API+'/reports/'+rid, {method:'DELETE'});
+      row.remove();
+    });
+  });
+
+  // Bind delete all button (in header, outside dynamic area)
+  const delAllBtn = document.querySelector('[data-delete-all]');
+  if(delAllBtn) {
+    const newBtn = delAllBtn.cloneNode(true);
+    delAllBtn.parentNode.replaceChild(newBtn, delAllBtn);
+    newBtn.addEventListener('click', async function() {
+      this.textContent = 'Deleting...';
+      this.disabled = true;
+      for(const rpt of r.reports) {
+        await fetch(API+'/reports/'+rpt.id, {method:'DELETE'});
+      }
+      showPage('reports');
+    });
+  }
+}
+
+function renderRecentReports(reports) {
+  const c = document.getElementById('recent-reports');
+  if (reports.length === 0) { c.innerHTML = '<div class="text-gray-400">No reports yet</div>'; return; }
+  c.innerHTML = reports.map(r => `<div class="flex justify-between items-center py-1 border-b border-gray-100"><span class="text-xs">${r.filename}</span><a href="${API}/reports/${r.id}/download" class="text-xs text-teal-600 hover:underline">Download</a></div>`).join('');
+}
+
+// ============================================================
+// WIDGETS MANAGEMENT
+// ============================================================
+async function loadWidgets() {
+  try {
+    const r = await fetch(API+'/widgets').then(r=>r.json());
+    const c = document.getElementById('widgets-grid');
+    if (!r.widgets || r.widgets.length === 0) {
+      c.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-12"><div class="text-4xl mb-3">📊</div>No saved widgets yet.<br>Go to Query Builder, create a chart, and click "Save as Widget"</div>';
+      return;
+    }
+    c.innerHTML = r.widgets.map(w => {
+      const agg = typeof w.agg_config === 'string' ? JSON.parse(w.agg_config) : w.agg_config;
+      const chartType = agg.chart_type || w.chart_type || 'bar';
+      const groupBy = agg.group_by || '-';
+      return `<div class="card p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-gray-800 text-sm">${w.name}</h3>
+          <span class="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">${chartType}</span>
+        </div>
+        <div class="text-xs text-gray-500 mb-1">Group by: <code class="bg-gray-100 px-1 rounded">${groupBy}</code></div>
+        <div class="text-xs text-gray-400 mb-3">${w.description || 'No description'}</div>
+        <div class="flex gap-2">
+          <button onclick="previewWidget('${w.id}')" class="btn btn-outline flex-1 text-xs">Preview</button>
+          <button onclick="deleteWidget('${w.id}')" class="btn btn-danger text-xs">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('loadWidgets error:', e); }
+}
+
+async function previewWidget(wid) {
+  try {
+    const r = await fetch(API+'/widgets').then(r=>r.json());
+    const w = r.widgets.find(x=>x.id===wid);
+    if (!w) return;
+    const agg = typeof w.agg_config === 'string' ? JSON.parse(w.agg_config) : w.agg_config;
+    showTab('query');
+    document.getElementById('agg-field').value = agg.group_by || '';
+    document.getElementById('chart-type').value = agg.chart_type || 'bar';
+    document.getElementById('agg-size').value = agg.size || 10;
+    runAggregation();
+  } catch(e) { toast('Error loading widget','red'); }
+}
+
+async function deleteWidget(wid) {
+  if (!confirm('Delete this widget?')) return;
+  await fetch(API+'/widgets/'+wid, {method:'DELETE'});
+  loadWidgets();
+  toast('Widget deleted','green');
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function toast(msg, color='green') {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.background = color==='green'?'#0D7377':color==='red'?'#BD271E':color==='blue'?'#3498db':'#333';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3000);
+}
+
+// Init
+init();
+renderFilters();
+</script>
+</body>
+</html>

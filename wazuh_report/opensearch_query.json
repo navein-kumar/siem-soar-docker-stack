@@ -1,0 +1,445 @@
+{
+  "size": 0,
+  "track_total_hits": true,
+  "query": {
+    "range": {
+      "timestamp": {
+        "gte": "now-48h"
+      }
+    }
+  },
+  "aggs": {
+    "today": {
+      "filter": {
+        "range": {
+          "timestamp": {
+            "gte": "now-24h"
+          }
+        }
+      },
+      "aggs": {
+        "alerts_by_level": {
+          "terms": {
+            "field": "rule.level",
+            "size": 20,
+            "order": {
+              "_key": "desc"
+            }
+          }
+        },
+        "top_rules": {
+          "terms": {
+            "field": "rule.id",
+            "size": 50
+          },
+          "aggs": {
+            "rule_desc": {
+              "terms": {
+                "field": "rule.description",
+                "size": 1
+              }
+            },
+            "rule_level": {
+              "terms": {
+                "field": "rule.level",
+                "size": 1
+              }
+            }
+          }
+        },
+        "top_agents": {
+          "terms": {
+            "field": "agent.name",
+            "size": 10
+          },
+          "aggs": {
+            "by_level": {
+              "terms": {
+                "field": "rule.level",
+                "size": 20
+              }
+            }
+          }
+        },
+        "mitre_techniques": {
+          "terms": {
+            "field": "rule.mitre.technique",
+            "size": 15
+          }
+        },
+        "mitre_tactics": {
+          "terms": {
+            "field": "rule.mitre.tactic",
+            "size": 15
+          }
+        },
+        "alerts_over_time": {
+          "date_histogram": {
+            "field": "timestamp",
+            "fixed_interval": "1h"
+          }
+        },
+        "auth_fail": {
+          "filter": {
+            "bool": {
+              "should": [
+                {
+                  "match_phrase": {
+                    "rule.groups": "win_authentication_failed"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "rule.groups": "authentication_failed"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "rule.groups": "authentication_failures"
+                  }
+                }
+              ],
+              "minimum_should_match": 1
+            }
+          },
+          "aggs": {
+            "by_win_user": {
+              "terms": {
+                "field": "data.win.eventdata.targetUserName",
+                "size": 5
+              }
+            },
+            "by_dstuser": {
+              "terms": {
+                "field": "data.dstuser",
+                "size": 5
+              }
+            },
+            "by_srcuser": {
+              "terms": {
+                "field": "data.srcuser",
+                "size": 5
+              }
+            },
+            "by_win_ip": {
+              "terms": {
+                "field": "data.win.eventdata.ipAddress",
+                "size": 5
+              }
+            },
+            "by_srcip": {
+              "terms": {
+                "field": "data.srcip",
+                "size": 5
+              }
+            },
+            "top_rules": {
+              "terms": {
+                "field": "rule.description",
+                "size": 5
+              }
+            }
+          }
+        },
+        "auth_success": {
+          "filter": {
+            "match_phrase": {
+              "rule.groups": "authentication_success"
+            }
+          },
+          "aggs": {
+            "by_win_user": {
+              "terms": {
+                "field": "data.win.eventdata.targetUserName",
+                "size": 5
+              }
+            },
+            "by_dstuser": {
+              "terms": {
+                "field": "data.dstuser",
+                "size": 5
+              }
+            },
+            "by_srcuser": {
+              "terms": {
+                "field": "data.srcuser",
+                "size": 5
+              }
+            },
+            "top_rules": {
+              "terms": {
+                "field": "rule.description",
+                "size": 5
+              }
+            }
+          }
+        },
+        "vuln": {
+          "filter": {
+            "term": {
+              "rule.groups": "vulnerability-detector"
+            }
+          },
+          "aggs": {
+            "by_sev": {
+              "terms": {
+                "field": "data.vulnerability.severity",
+                "size": 10
+              }
+            },
+            "top_cve": {
+              "terms": {
+                "field": "data.vulnerability.cve",
+                "size": 10
+              }
+            },
+            "top_agent": {
+              "terms": {
+                "field": "agent.name",
+                "size": 5
+              }
+            },
+            "top_pkg": {
+              "terms": {
+                "field": "data.vulnerability.package.name",
+                "size": 5
+              }
+            }
+          }
+        },
+        "level12": {
+          "filter": {
+            "range": {
+              "rule.level": {
+                "gte": 12
+              }
+            }
+          }
+        },
+        "sca": {
+          "filter": {
+            "term": {
+              "rule.groups": "sca"
+            }
+          },
+          "aggs": {
+            "by_result": {
+              "terms": {
+                "field": "data.sca.check.result",
+                "size": 5
+              }
+            },
+            "by_policy": {
+              "terms": {
+                "field": "data.sca.policy",
+                "size": 5
+              }
+            }
+          }
+        },
+        "fim": {
+          "filter": {
+            "term": {
+              "rule.groups": "syscheck"
+            }
+          },
+          "aggs": {
+            "by_event": {
+              "terms": {
+                "field": "syscheck.event",
+                "size": 5
+              }
+            },
+            "by_agent": {
+              "terms": {
+                "field": "agent.name",
+                "size": 5
+              }
+            },
+            "by_path": {
+              "terms": {
+                "field": "syscheck.path",
+                "size": 10
+              }
+            }
+          }
+        },
+        "compliance_pci": {
+          "filter": {
+            "exists": {
+              "field": "rule.pci_dss"
+            }
+          },
+          "aggs": {
+            "controls": {
+              "terms": {
+                "field": "rule.pci_dss",
+                "size": 15
+              }
+            }
+          }
+        },
+        "compliance_hipaa": {
+          "filter": {
+            "exists": {
+              "field": "rule.hipaa"
+            }
+          },
+          "aggs": {
+            "controls": {
+              "terms": {
+                "field": "rule.hipaa",
+                "size": 15
+              }
+            }
+          }
+        },
+        "compliance_gdpr": {
+          "filter": {
+            "exists": {
+              "field": "rule.gdpr"
+            }
+          },
+          "aggs": {
+            "controls": {
+              "terms": {
+                "field": "rule.gdpr",
+                "size": 15
+              }
+            }
+          }
+        },
+        "compliance_nist": {
+          "filter": {
+            "exists": {
+              "field": "rule.nist_800_53"
+            }
+          },
+          "aggs": {
+            "controls": {
+              "terms": {
+                "field": "rule.nist_800_53",
+                "size": 15
+              }
+            }
+          }
+        },
+        "compliance_tsc": {
+          "filter": {
+            "exists": {
+              "field": "rule.tsc"
+            }
+          },
+          "aggs": {
+            "controls": {
+              "terms": {
+                "field": "rule.tsc",
+                "size": 15
+              }
+            }
+          }
+        },
+        "top_srcip": {
+          "terms": {
+            "field": "data.win.eventdata.ipAddress",
+            "size": 10
+          }
+        },
+        "top_srcip_linux": {
+          "terms": {
+            "field": "data.srcip",
+            "size": 10
+          }
+        },
+        "incidents": {
+          "filter": {
+            "range": {
+              "rule.level": {
+                "gte": 12
+              }
+            }
+          },
+          "aggs": {
+            "by_rule": {
+              "terms": {
+                "field": "rule.id",
+                "size": 15,
+                "order": {
+                  "max_level": "desc"
+                }
+              },
+              "aggs": {
+                "max_level": {
+                  "max": {
+                    "field": "rule.level"
+                  }
+                },
+                "rule_desc": {
+                  "terms": {
+                    "field": "rule.description",
+                    "size": 1
+                  }
+                },
+                "agents": {
+                  "terms": {
+                    "field": "agent.name",
+                    "size": 5
+                  }
+                },
+                "latest": {
+                  "top_hits": {
+                    "size": 1,
+                    "_source": [
+                      "rule.level",
+                      "rule.description",
+                      "rule.id",
+                      "agent.name",
+                      "data.srcip",
+                      "data.win.eventdata.ipAddress",
+                      "timestamp"
+                    ],
+                    "sort": [
+                      {
+                        "timestamp": {
+                          "order": "desc"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "prev_day_total": {
+      "filter": {
+        "range": {
+          "timestamp": {
+            "gte": "now-48h",
+            "lt": "now-24h"
+          }
+        }
+      }
+    },
+    "prev_day_by_level": {
+      "filter": {
+        "range": {
+          "timestamp": {
+            "gte": "now-48h",
+            "lt": "now-24h"
+          }
+        }
+      },
+      "aggs": {
+        "levels": {
+          "terms": {
+            "field": "rule.level",
+            "size": 20
+          }
+        }
+      }
+    }
+  }
+}

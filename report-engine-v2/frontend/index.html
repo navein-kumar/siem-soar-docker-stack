@@ -6,6 +6,7 @@
 <title>Codesec Report Engine</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 body{font-family:'Inter',sans-serif}
@@ -153,13 +154,13 @@ select:focus,input:focus{border-color:#0D7377;box-shadow:0 0 0 2px rgba(13,115,1
 
 
 <!-- WIDGETS TAB -->
-<div id="page-widgets" class="p-6 hidden">
-  <div class="flex justify-between items-center mb-4">
+<div id="page-widgets" class="hidden max-w-7xl mx-auto px-6 py-6">
+  <div class="flex justify-between items-center mb-6">
     <h2 class="text-xl font-bold text-gray-800">Saved Widgets</h2>
     <button onclick="showTab('query')" class="btn btn-primary">+ Create Widget</button>
   </div>
-  <div id="widgets-grid" class="grid grid-cols-3 gap-4">
-    <div class="col-span-3 text-center text-gray-400 py-12">Loading widgets...</div>
+  <div id="widgets-gallery" class="grid grid-cols-3 gap-4">
+    <div class="text-center text-gray-400 py-12 col-span-3">Loading widgets...</div>
   </div>
 </div>
 
@@ -253,6 +254,16 @@ select:focus,input:focus{border-color:#0D7377;box-shadow:0 0 0 2px rgba(13,115,1
 const API = '/api';
 let allFields = [];
 let currentChart = null;
+let chartColor = '#0D7377';
+function selectChartColor(el, color) {
+  chartColor = color;
+  document.querySelectorAll('#agg-section .color-swatch').forEach(s=>s.classList.remove('selected'));
+  if(el.classList) el.classList.add('selected');
+  // Re-render if chart exists
+  if(currentChart && window._lastChartData) {
+    renderChart(window._lastChartData, document.getElementById('agg-chart-type').value, document.getElementById('agg-field').value);
+  }
+}
 let editingTemplate = null;
 let selectedColor = '#1B2A4A';
 let selectedAccent = '#0D7377';
@@ -270,10 +281,32 @@ const SECTIONS = [
   {id:'security_events', name:'Security Events Summary', desc:'All rules sorted by severity', icon:'📝'},
 ];
 
+// Load saved widgets into SECTIONS array
+async function loadWidgetSections() {
+  try {
+    const r = await fetch(API+'/widgets').then(r=>r.json());
+    if (r.widgets && r.widgets.length > 0) {
+      r.widgets.forEach(w => {
+        if (!SECTIONS.find(s => s.id === 'widget_'+w.id)) {
+          SECTIONS.push({
+            id: 'widget_'+w.id,
+            name: w.name,
+            desc: w.description || 'Custom widget',
+            icon: '📊',
+            widget_id: w.id,
+            is_widget: true
+          });
+        }
+      });
+    }
+  } catch(e) {}
+}
+
 // ============================================================
 // INIT
 // ============================================================
 async function init() {
+  await loadWidgetSections();
   try {
     const h = await fetch(API+'/health').then(r=>r.json());
     document.getElementById('health-badge').className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700';
@@ -473,6 +506,7 @@ async function runAggregation() {
 const COLORS = ['#0D7377','#14919B','#BD271E','#E7664C','#D6BF57','#6DCCB1','#3498db','#9b59b6','#e67e22','#2ecc71','#1abc9c','#e74c3c','#f39c12','#8e44ad','#2c3e50','#1B2A4A','#c0392b','#27ae60','#2980b9','#f1c40f'];
 
 function renderChart(data, type, field) {
+  window._lastChartData = data;
   document.getElementById('chart-container').classList.remove('hidden');
   document.getElementById('table-container').classList.add('hidden');
   if (currentChart) currentChart.destroy();
@@ -496,8 +530,8 @@ function renderChart(data, type, field) {
     opts = {cutout:type==='doughnut'?'55%':0, plugins:{legend:{display:true,position:'right',labels:{font:{size:11},padding:12,usePointStyle:true,pointStyle:'circle'}}}};
   } else if (isGradient) {
     const g = ctx.createLinearGradient(0,0,0,400);
-    g.addColorStop(0,'rgba(13,115,119,0.8)');
-    g.addColorStop(1,'rgba(13,115,119,0.05)');
+    g.addColorStop(0,chartColor+'CC');
+    g.addColorStop(1,chartColor+'11');
     datasets = [{label:field, data:values, backgroundColor:g, borderColor:'#0D7377', borderWidth:2.5, tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#0D7377', pointBorderColor:'#fff', pointBorderWidth:2, pointHoverRadius:6}];
     opts = {plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{font:{size:10}}}}};
   } else {
@@ -533,17 +567,30 @@ function renderTable(data, field) {
 // SAVE WIDGET
 // ============================================================
 async function saveWidget() {
+  const name = document.getElementById('widget-name').value || 'Widget ' + new Date().toLocaleTimeString();
   const field = document.getElementById('agg-field').value;
-  if (!field) { toast('Select a field first','red'); return; }
-  const name = prompt('Widget name:', field + ' chart');
-  if (!name) return;
+  const chartType = document.getElementById('agg-chart-type').value;
+  const size = parseInt(document.getElementById('agg-size').value) || 10;
+  const showLabels = document.getElementById('show-labels').checked;
+  const timeFrom = document.getElementById('time-from').value;
+  const data = {
+    name: name,
+    description: field + ' (' + chartType + ')',
+    query_dsl: buildQuery() || {},
+    agg_config: {
+      field: field,
+      chart_type: chartType,
+      size: size,
+      color: chartColor,
+      show_labels: showLabels,
+      time_from: timeFrom
+    },
+    chart_type: chartType
+  };
   try {
-    await fetch(API+'/widgets', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({name, query_dsl:buildQuery()||{}, agg_config:{group_by:field, size:parseInt(document.getElementById('agg-size').value), chart_type:document.getElementById('chart-type').value}, chart_type:document.getElementById('chart-type').value})
-    });
-    toast('Widget saved!','green');
-  } catch(e) { toast('Error saving','red'); }
+    const r = await fetch(API+'/widgets', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json());
+    toast('Widget saved: ' + name, 'green');
+  } catch(e) { toast('Error saving widget', 'red'); }
 }
 
 // ============================================================
@@ -822,31 +869,97 @@ function renderRecentReports(reports) {
 // WIDGETS MANAGEMENT
 // ============================================================
 async function loadWidgets() {
+  const r = await fetch(API+'/widgets').then(r=>r.json());
+  const c = document.getElementById('widgets-gallery');
+  if (!r.widgets || r.widgets.length === 0) {
+    c.innerHTML = '<div class="text-center text-gray-400 py-12 col-span-3">No saved widgets. Go to Query Builder to create one.</div>';
+    return;
+  }
+  c.innerHTML = r.widgets.map(w => {
+    const cfg = typeof w.agg_config === 'string' ? JSON.parse(w.agg_config) : (w.agg_config||{});
+    const color = cfg.color || '#0D7377';
+    const chartType = cfg.chart_type || w.chart_type || 'bar';
+    const field = cfg.field || '';
+    return `<div class="card p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <div style="width:12px;height:12px;border-radius:3px;background:${color}"></div>
+        <h3 class="font-bold text-sm">${w.name}</h3>
+      </div>
+      <p class="text-xs text-gray-500 mb-1">${w.description||''}</p>
+      <div class="text-xs text-gray-400 mb-3">Type: ${chartType} | Field: ${field}</div>
+      <div id="widget-preview-${w.id}" class="mb-3" style="height:120px;background:#f9fafb;border-radius:8px;display:flex;align-items:center;justify-content:center">
+        <canvas id="wcanvas-${w.id}" width="300" height="120"></canvas>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="previewWidget('${w.id}')" class="btn btn-outline flex-1 text-xs">Preview</button>
+        <button data-delete-widget="${w.id}" class="btn text-xs" style="border:1px solid #e74c3c;color:#e74c3c">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Bind delete buttons
+  c.querySelectorAll('[data-delete-widget]').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const wid = this.getAttribute('data-delete-widget');
+      await fetch(API+'/widgets/'+wid, {method:'DELETE'});
+      loadWidgets();
+    });
+  });
+
+  // Auto-preview each widget
+  r.widgets.forEach(w => previewWidget(w.id));
+}
+
+async function previewWidget(wid) {
   try {
     const r = await fetch(API+'/widgets').then(r=>r.json());
-    const c = document.getElementById('widgets-grid');
-    if (!r.widgets || r.widgets.length === 0) {
-      c.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-12"><div class="text-4xl mb-3">📊</div>No saved widgets yet.<br>Go to Query Builder, create a chart, and click "Save as Widget"</div>';
-      return;
-    }
-    c.innerHTML = r.widgets.map(w => {
-      const agg = typeof w.agg_config === 'string' ? JSON.parse(w.agg_config) : w.agg_config;
-      const chartType = agg.chart_type || w.chart_type || 'bar';
-      const groupBy = agg.group_by || '-';
-      return `<div class="card p-4">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="font-semibold text-gray-800 text-sm">${w.name}</h3>
-          <span class="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">${chartType}</span>
-        </div>
-        <div class="text-xs text-gray-500 mb-1">Group by: <code class="bg-gray-100 px-1 rounded">${groupBy}</code></div>
-        <div class="text-xs text-gray-400 mb-3">${w.description || 'No description'}</div>
-        <div class="flex gap-2">
-          <button onclick="previewWidget('${w.id}')" class="btn btn-outline flex-1 text-xs">Preview</button>
-          <button onclick="deleteWidget('${w.id}')" class="btn btn-danger text-xs">✕</button>
-        </div>
-      </div>`;
-    }).join('');
-  } catch(e) { console.error('loadWidgets error:', e); }
+    const w = r.widgets.find(x => x.id === wid);
+    if (!w) return;
+    const cfg = typeof w.agg_config === 'string' ? JSON.parse(w.agg_config) : (w.agg_config||{});
+    const field = cfg.field || '';
+    const size = cfg.size || 10;
+    const timeFrom = cfg.time_from || 'now-24h';
+    const color = cfg.color || '#0D7377';
+    const chartType = cfg.chart_type || w.chart_type || 'bar';
+
+    const query = typeof w.query_dsl === 'string' ? JSON.parse(w.query_dsl) : (w.query_dsl||{});
+    const body = {group_by: field, time_from: timeFrom, size: size};
+    if (query && Object.keys(query).length > 0) body.query = query;
+
+    const data = await fetch(API+'/aggregate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    if (!data.data || data.data.length === 0) return;
+
+    const canvas = document.getElementById('wcanvas-'+wid);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const COLORS = [color, '#3498db','#e74c3c','#9b59b6','#e67e22','#2ecc71','#f39c12','#1abc9c'];
+    const labels = data.data.map(d=>d.label);
+    const values = data.data.map(d=>d.value);
+
+    const isPie = chartType === 'doughnut' || chartType === 'pie' || chartType === 'polarArea';
+    new Chart(ctx, {
+      type: isPie ? chartType : (chartType === 'horizontalBar' ? 'bar' : (chartType === 'gradient' ? 'line' : chartType)),
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: isPie ? COLORS.slice(0, values.length) : color,
+          borderColor: isPie ? '#fff' : color,
+          borderWidth: isPie ? 2 : 0,
+          borderRadius: 4,
+          tension: 0.3,
+          fill: chartType === 'gradient',
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: chartType === 'horizontalBar' ? 'y' : 'x',
+        plugins: {legend:{display:isPie,position:'right',labels:{font:{size:8},boxWidth:8}},datalabels:{display:false}},
+        scales: isPie ? {} : {x:{display:false},y:{display:false}}
+      }
+    });
+  } catch(e) { /* silent */ }
 }
 
 async function previewWidget(wid) {

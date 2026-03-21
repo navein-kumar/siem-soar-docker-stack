@@ -467,7 +467,70 @@ def render_html(d, sections=None):
         if rp2:
             pages.append(f'<div style="page-break-before:always" class="page"><div class="card" style="padding:0;overflow:hidden"><table>{the_head}<tbody>{rp2}</tbody></table></div></div>')
 
+    # Render custom widget sections
+    for sec_id in sections:
+        if sec_id.startswith("widget_"):
+            wid = sec_id.replace("widget_", "")
+            widget_html = _render_widget_section(wid, d)
+            if widget_html:
+                pages.append(widget_html)
+
     return f'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{d["cover_title"]}</title><style>{css}</style></head><body>{"".join(pages)}</body></html>'
+
+
+def _render_widget_section(widget_id, d):
+    """Render a custom widget as a report page"""
+    try:
+        widgets = database.get_widgets()
+        w = next((x for x in widgets if x["id"] == widget_id), None)
+        if not w:
+            return None
+
+        cfg = json.loads(w["agg_config"]) if isinstance(w["agg_config"], str) else w["agg_config"]
+        query_dsl = json.loads(w["query_dsl"]) if isinstance(w["query_dsl"], str) else w["query_dsl"]
+
+        field = cfg.get("field", "rule.level")
+        size = cfg.get("size", 10)
+        color = cfg.get("color", "#0D7377")
+        chart_type = cfg.get("chart_type", "bar")
+        time_from = cfg.get("time_from", f"now-{d.get('period','24h')}")
+
+        # Run aggregation
+        must = [{"range": {"timestamp": {"gte": time_from, "lte": "now"}}}]
+        if query_dsl and isinstance(query_dsl, dict) and query_dsl.get("bool"):
+            must.extend(query_dsl["bool"].get("must", []))
+
+        aggs = {"result": {"terms": {"field": field, "size": size, "order": {"_count": "desc"}}}}
+        result = opensearch_client.run_aggregation({"bool": {"must": must}}, aggs)
+        buckets = result["aggregations"]["result"]["buckets"]
+
+        if not buckets:
+            return f'<div class="page"><div class="hdr"><h2>{w["name"]}</h2><p>{w.get("description","Custom analysis")}</p></div><div style="text-align:center;color:#95a5a6;padding:40px">No data for this widget</div></div>'
+
+        items = [{"value": b["doc_count"], "label": str(b["key"]), "color": color} for b in buckets]
+
+        # Render chart based on type
+        if chart_type in ("horizontalBar", "bar"):
+            if chart_type == "horizontalBar":
+                chart_svg = svg_hbars(items, 500, max(len(items) * 19 + 10, 80))
+            else:
+                chart_svg = svg_vbars(items, 500, 180)
+        elif chart_type in ("doughnut", "pie"):
+            chart_svg = svg_donut([{"value": i["value"], "color": PALETTE[idx % 15]} for idx, i in enumerate(items)], 200, 200, 80, 50)
+        else:
+            chart_svg = svg_vbars(items, 500, 180)
+
+        # Also build a data table
+        rows = "".join(f'<tr style="background:{"#fff" if i%2==0 else "#f8f9fb"}"><td style="padding:4px 8px;border-bottom:1px solid #ecf0f1;font-size:8px">{it["label"]}</td><td style="padding:4px 8px;border-bottom:1px solid #ecf0f1;text-align:right;font-weight:700;font-size:8px;color:{color}">{_fc(it["value"])}</td></tr>' for i, it in enumerate(items))
+        table_html = f'<table><thead><tr><th>{field}</th><th style="text-align:right">Count</th></tr></thead><tbody>{rows}</tbody></table>'
+
+        return f'''<div class="page">
+  <div class="hdr" style="background:linear-gradient(135deg,{color},#1a1a2e)"><h2 style="color:#fff">{w["name"]}</h2><p style="color:rgba(255,255,255,0.7)">{w.get("description","Custom analysis")} &bull; {_fc(result["hits"]["total"]["value"])} total events</p></div>
+  <div class="card"><div class="stitle"><span class="dot" style="background:{color}"></span>{w["name"]}</div><div style="text-align:center">{chart_svg}</div></div>
+  <div class="card"><div class="stitle"><span class="dot" style="background:{color}"></span>Data Table</div>{table_html}</div>
+</div>'''
+    except Exception as e:
+        return f'<div class="page"><div class="hdr"><h2>Widget Error</h2></div><div class="card"><p style="color:#e74c3c">{str(e)}</p></div></div>'
 
 async def _html_to_pdf(html):
     url = f"{config.GOTENBERG_URL}/forms/chromium/convert/html"

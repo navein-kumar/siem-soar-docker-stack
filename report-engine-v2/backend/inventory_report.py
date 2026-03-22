@@ -411,13 +411,18 @@ def render_inventory_html(d, template_cfg=None):
   <div class="hdr"><h2>Running Processes &amp; Network Ports</h2><p>{_fc(d["total_processes"])} processes, {_fc(d["total_ports"])} open ports</p></div>
   <div style="display:flex;gap:8px;margin-bottom:14px">
     <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0f4ff;border:1px solid #b3c6ff"><div style="font-size:28px;font-weight:800;color:#3498db">{_fc(d["total_processes"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Running Processes</div></div>
-    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0fdf4;border:1px solid #a3cfbb"><div style="font-size:28px;font-weight:800;color:#2ecc71">{_fc(d["total_ports"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Open Ports</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0fdf4;border:1px solid #a3cfbb"><div style="font-size:28px;font-weight:800;color:#2ecc71">{_fc(d["total_ports"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Open Ports / Listeners</div></div>
     <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fef9f0;border:1px solid #f5d6a3"><div style="font-size:28px;font-weight:800;color:#e67e22">{_fc(d["total_services"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Services</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f5f0ff;border:1px solid #d5c6f5"><div style="font-size:28px;font-weight:800;color:#9b59b6">{len(d["port_by_transport"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Protocols</div></div>
   </div>
   <div class="card"><div class="stitle"><span class="dot" style="background:#3498db"></span>Top Running Processes</div><div style="text-align:center">{proc_bars}</div></div>
   <div style="display:flex;gap:12px;margin-bottom:12px">
-    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e67e22"></span>Top Listening Ports</div>{_stbl(d["top_ports"][:10], "name", "Port", "Connections", "#e67e22")}</div>
-    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#2ecc71"></span>Port Services</div>{_stbl(d["port_services"][:10], "name", "Process", "Ports", "#2ecc71")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e67e22"></span>Top Listening Ports</div>{_stbl(d["top_ports"][:10], "name", "Port", "Listeners", "#e67e22")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#2ecc71"></span>Listening Processes</div>{_stbl(d["port_services"][:10], "name", "Process", "Ports", "#2ecc71")}</div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:12px">
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#9b59b6"></span>Transport Protocols</div>{_stbl(d["port_by_transport"], "name", "Protocol", "Count", "#9b59b6")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e74c3c"></span>Open Ports per Agent</div>{_stbl(d["ports_by_agent"][:10], "name", "Agent", "Ports", "#e74c3c")}</div>
   </div>
 </div>
 

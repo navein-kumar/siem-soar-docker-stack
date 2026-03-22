@@ -8,6 +8,7 @@ import json, os
 import config, database, opensearch_client
 from pdf_generator import generate_report, generate_quick_report
 from inventory_report import generate_inventory_report
+from inventory_excel import generate_inventory_excel
 
 app = FastAPI(title="Codesec Report Engine", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -191,11 +192,31 @@ async def gen_quick(period: Optional[str] = "24h"):
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
 
 @app.post("/api/generate/inventory")
-async def gen_inventory(tid: Optional[str] = None):
+async def gen_inventory(tid: Optional[str] = None, agent: Optional[str] = None):
     result, err = await generate_inventory_report(tid)
     if err:
         raise HTTPException(500, err)
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
+
+@app.post("/api/generate/inventory/excel")
+def gen_inventory_excel(agent: Optional[str] = None):
+    try:
+        result = generate_inventory_excel(agent)
+        return FileResponse(result["filepath"], media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=result["filename"])
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/api/agents")
+def list_agents():
+    """Get list of all agents for dropdown"""
+    try:
+        client = opensearch_client.get_client()
+        idx_prefix = config.OPENSEARCH_INDEX.split('-')[0]
+        r = client.search(index=f"{idx_prefix}-states-inventory-system-*", body={"size": 0, "aggs": {"agents": {"terms": {"field": "agent.name", "size": 100}}}})
+        agents = [b["key"] for b in r["aggregations"]["agents"]["buckets"]]
+        return {"agents": agents}
+    except Exception as e:
+        return {"agents": [], "error": str(e)}
 
 @app.post("/api/generate/{tid}")
 async def gen_report(tid: str, period: Optional[str] = "24h"):

@@ -790,31 +790,54 @@ async function deleteTemplate(id) {
 // REPORT GENERATION
 // ============================================================
 async function generateFromTemplate(tid, periodOverride) {
-  // Use period from dropdown if in editor, otherwise use override or default
   const periodEl = document.getElementById('tpl-period');
   const p = periodOverride || (periodEl ? periodEl.value : '24h') || '24h';
-  toast('Generating report ('+p+')... please wait','blue');
-  try {
-    const r = await fetch(API+'/generate/'+tid+'?period='+p, {method:'POST'}).then(r=>r.json());
+  toast('📄 Report generation started in background. Check Reports tab when ready.','blue');
+  fetch(API+'/generate/'+tid+'?period='+p, {method:'POST'}).then(r=>r.json()).then(r => {
     if (r.download_url) {
-      window.open(r.download_url,'_blank');
-      toast('Report generated! '+((r.size/1024).toFixed(0))+'KB','green');
+      toast('✅ Report ready! ' + ((r.size/1024).toFixed(0)) + 'KB — click Reports tab to download','green');
       loadReports();
     } else {
-      toast(r.detail || r.message || 'Error generating','red');
+      toast('❌ ' + (r.detail || 'Generation failed'),'red');
     }
-  } catch(e) { toast('Generation failed: '+e.message,'red'); }
+  }).catch(e => toast('❌ Error: '+e.message,'red'));
 }
 
 async function generateQuickReport() {
-  toast('Generating quick report...','blue');
-  try {
-    const r = await fetch(API+'/generate/quick', {method:'POST'}).then(r=>r.json());
+  toast('📄 Quick report generation started in background...','blue');
+  fetch(API+'/generate/quick', {method:'POST'}).then(r=>r.json()).then(r => {
     if (r.download_url) {
-      window.open(r.download_url,'_blank');
-      toast('Report ready!','green');
+      toast('✅ Quick report ready! Check Reports tab','green');
+      loadReports();
     }
-  } catch(e) { toast('Error: '+e.message,'red'); }
+  }).catch(e => toast('❌ Error: '+e.message,'red'));
+}
+
+async function generateInventoryExcel(agent) {
+  const agentParam = agent ? '?agent='+encodeURIComponent(agent) : '';
+  toast('📊 Excel export started in background. Check Reports tab when ready.','blue');
+  fetch(API+'/generate/inventory/excel/async'+agentParam, {method:'POST'}).then(r=>r.json()).then(r => {
+    if (r.job_id) {
+      pollJob(r.job_id);
+    }
+  }).catch(e => toast('❌ Error: '+e.message,'red'));
+}
+
+function pollJob(jobId) {
+  const check = () => {
+    fetch(API+'/jobs/'+jobId).then(r=>r.json()).then(job => {
+      if (job.status === 'completed') {
+        toast('✅ Excel export ready! ' + ((job.size/1024).toFixed(0)) + 'KB — downloading...','green');
+        window.open(API+'/jobs/'+jobId+'/download','_blank');
+        loadReports();
+      } else if (job.status === 'failed') {
+        toast('❌ Export failed: ' + job.error,'red');
+      } else {
+        setTimeout(check, 3000);
+      }
+    });
+  };
+  setTimeout(check, 2000);
 }
 
 async function previewTemplate() {

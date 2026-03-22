@@ -220,10 +220,13 @@ def _run_excel_job(job_id, agent_filter):
 
         result = generate_inventory_excel(agent_filter, progress_callback=lambda p, m: _update_job(job_id, p, m))
 
+        # Save to report archive
+        rid = database.save_report(None, result["filename"], "Inventory Snapshot", agent_filter or "All Agents", result["size"])
+
         jobs[job_id]["status"] = "completed"
         jobs[job_id]["progress"] = 100
         jobs[job_id]["message"] = "Ready for download"
-        jobs[job_id]["result"] = {"filename": result["filename"], "filepath": result["filepath"], "size": result["size"]}
+        jobs[job_id]["result"] = {"id": rid, "filename": result["filename"], "filepath": result["filepath"], "size": result["size"]}
     except Exception as e:
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["error"] = str(e)

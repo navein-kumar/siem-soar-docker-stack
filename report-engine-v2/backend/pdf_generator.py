@@ -267,6 +267,7 @@ def process_data(raw, template_cfg=None, period="24h"):
         cc = template_cfg.get("cover_color", cc)
         ca = template_cfg.get("cover_accent", ca)
         cn = template_cfg.get("description", cn) or cn
+        caddr = template_cfg.get("client_address", caddr) or caddr
         cl = template_cfg.get("logo_url", cl) or cl
 
     # Weekly/Monthly daily trend data

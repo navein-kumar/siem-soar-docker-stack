@@ -192,7 +192,8 @@
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-xl font-bold text-gray-800">Edit Template</h2>
       <div class="flex gap-2">
-        <button onclick="previewTemplate()" class="btn btn-outline">Preview PDF</button>
+        <button onclick="previewTemplate(false)" class="btn btn-outline">Preview Classic</button>
+        <button onclick="previewTemplate(true)" class="btn btn-outline" style="border-color:#2563eb;color:#2563eb">Preview Enhanced</button>
         <button onclick="saveTemplate()" class="btn btn-primary">Save Template</button>
         <button onclick="closeEditor()" class="btn btn-secondary">Close</button>
       </div>
@@ -204,7 +205,8 @@
         <div class="mb-3"><label class="text-xs text-gray-500">Template Name</label><input type="text" id="tpl-name" class="w-full" placeholder="Executive Daily Report"></div>
         <div class="mb-3"><label class="text-xs text-gray-500">Cover Title</label><input type="text" id="tpl-cover-title" class="w-full" value="Security Threat Analysis Report"></div>
         <div class="mb-3"><label class="text-xs text-gray-500">Cover Subtitle</label><input type="text" id="tpl-cover-subtitle" class="w-full" placeholder="Daily Security Alert Analysis"></div>
-        <div class="mb-3"><label class="text-xs text-gray-500">Company Name</label><input type="text" id="tpl-company" class="w-full" placeholder="Codesec Technologies"></div>
+        <div class="mb-3"><label class="text-xs text-gray-500">Company Name</label><input type="text" id="tpl-company" class="w-full" placeholder="Codesecure Solutions"></div>
+        <div class="mb-3"><label class="text-xs text-gray-500">Company Address</label><input type="text" id="tpl-address" class="w-full" placeholder="Chennai, Tamil Nadu, India"></div>
         <div class="mb-3"><label class="text-xs text-gray-500">Logo URL</label><input type="text" id="tpl-logo" class="w-full" placeholder="https://..."></div>
         <div class="mb-3">
           <label class="text-xs text-gray-500 mb-1 block">Theme Color</label>

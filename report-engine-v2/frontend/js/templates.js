@@ -48,7 +48,8 @@ async function createTemplate() {
   document.getElementById('tpl-cover-title').value = 'Security Threat Analysis Report';
   document.getElementById('tpl-cover-subtitle').value = '';
   document.getElementById('tpl-logo').value = 'https://codesecure.in/images/codesec-logo1.png';
-  document.getElementById('tpl-company').value = 'Codesec Technologies';
+  document.getElementById('tpl-company').value = 'Codesecure Solutions';
+  document.getElementById('tpl-address').value = 'Chennai, Tamil Nadu, India';
   renderSections([]);
 }
 
@@ -61,7 +62,8 @@ async function editTemplate(id) {
   document.getElementById('tpl-cover-title').value = t.cover_title;
   document.getElementById('tpl-cover-subtitle').value = t.cover_subtitle||'';
   document.getElementById('tpl-logo').value = t.logo_url||'';
-  document.getElementById('tpl-company').value = t.description||'Codesec Technologies';
+  document.getElementById('tpl-company').value = t.description||'Codesecure Solutions';
+  document.getElementById('tpl-address').value = t.client_address||'Chennai, Tamil Nadu, India';
   selectedColor = t.cover_color;
   selectedAccent = t.cover_accent;
   const sections = JSON.parse(t.sections||'[]');
@@ -142,7 +144,8 @@ function selectAccent(el,color) {
 async function saveTemplate() {
   const data = {
     name: document.getElementById('tpl-name').value || 'Untitled',
-    description: document.getElementById('tpl-company').value || 'Codesec Technologies',
+    description: document.getElementById('tpl-company').value || 'Codesecure Solutions',
+    client_address: document.getElementById('tpl-address').value || 'Chennai, Tamil Nadu, India',
     cover_title: document.getElementById('tpl-cover-title').value,
     cover_subtitle: document.getElementById('tpl-cover-subtitle').value,
     cover_color: selectedColor,

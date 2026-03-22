@@ -7,6 +7,7 @@ from typing import Optional, List, Any
 import json, os, uuid, threading
 import config, database, opensearch_client
 from pdf_generator import generate_report, generate_quick_report
+from pdf_generator_v2 import generate_report_v2, generate_quick_report_v2
 from inventory_report import generate_inventory_report
 from inventory_excel import generate_inventory_excel
 from security_excel import export_security_events, export_auth_events, export_vulnerability
@@ -97,6 +98,7 @@ class TemplateData(BaseModel):
     cover_color: Optional[str] = "#1B2A4A"
     cover_accent: Optional[str] = "#0D7377"
     logo_url: Optional[str] = ""
+    client_address: Optional[str] = ""
     sections: Optional[List[Any]] = []
 
 @app.get("/api/templates")
@@ -302,6 +304,21 @@ def list_agents():
     except Exception as e:
         return {"agents": [], "error": str(e)}
 
+# --- V2 ENHANCED REPORTS ---
+@app.post("/api/generate/v2/quick")
+async def gen_quick_v2(period: Optional[str] = "24h"):
+    result, err = await generate_quick_report_v2(period)
+    if err:
+        raise HTTPException(500, err)
+    return {"download_url": f"/api/reports/{result['id']}/download", **result}
+
+@app.post("/api/generate/v2/{tid}")
+async def gen_report_v2(tid: str, period: Optional[str] = "24h"):
+    result, err = await generate_report_v2(tid, period)
+    if err:
+        raise HTTPException(400, err)
+    return {"download_url": f"/api/reports/{result['id']}/download", **result}
+
 @app.post("/api/generate/{tid}")
 async def gen_report(tid: str, period: Optional[str] = "24h"):
     result, err = await generate_report(tid, period)
@@ -319,6 +336,16 @@ def _center_preview(html):
         '.page{page-break-after:always;width:210mm;min-height:297mm;',
         '.page{page-break-after:always;width:210mm;min-height:297mm;margin:0 auto 20px;box-shadow:0 4px 20px rgba(0,0,0,0.15);'
     )
+
+def _center_preview_v2(html):
+    """Wrap v2 report HTML with centering styles for browser preview"""
+    inject_style = (
+        'body { background:#e5e7eb !important; '
+        'display:flex; flex-direction:column; align-items:center; padding:20px 0; } '
+        '.page { margin:0 auto 20px !important; '
+        'box-shadow:0 4px 24px rgba(0,0,0,0.18) !important; }'
+    )
+    return html.replace('</style>', f'{inject_style}</style>')
 
 @app.get("/api/preview/quick")
 async def preview_quick(period: Optional[str] = "24h"):
@@ -341,6 +368,40 @@ async def preview_inventory():
         from inventory_report import collect_inventory_data, render_inventory_html
         data = collect_inventory_data()
         html = _center_preview(render_inventory_html(data))
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
+
+@app.get("/api/preview/v2/quick")
+async def preview_quick_v2(period: Optional[str] = "24h"):
+    from fastapi.responses import HTMLResponse
+    try:
+        import pdf_generator_v2
+        from pdf_generator import build_query, process_data
+        query = build_query(period)
+        client = opensearch_client.get_client()
+        raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
+        data = process_data(raw, period=period)
+        html = _center_preview_v2(pdf_generator_v2.render_html_v2(data))
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
+
+@app.get("/api/preview/v2/{tid}")
+async def preview_report_v2(tid: str, period: Optional[str] = "24h"):
+    from fastapi.responses import HTMLResponse
+    template = database.get_template(tid)
+    if not template:
+        raise HTTPException(404, "Template not found")
+    try:
+        import pdf_generator_v2
+        from pdf_generator import build_query, process_data
+        query = build_query(period)
+        client = opensearch_client.get_client()
+        raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
+        data = process_data(raw, template, period)
+        sections = json.loads(template["sections"]) if isinstance(template["sections"], str) else template["sections"]
+        html = _center_preview_v2(pdf_generator_v2.render_html_v2(data, sections))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")

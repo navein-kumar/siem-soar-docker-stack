@@ -64,6 +64,13 @@ async function generateQuickReport() {
         <option value="">All Agents (${agents.length})</option>${agentOpts}
       </select>
     </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">PDF Style</label>
+      <select id="gen-style" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="v2">Enhanced (gradient charts, icons, enterprise)</option>
+        <option value="classic">Classic (v1)</option>
+      </select>
+    </div>
     <div style="margin-bottom:16px;font-size:11px;color:#95a5a6">Generates a PDF report with cover page, charts, and data tables. Runs in background.</div>
     <div style="display:flex;gap:8px">
       <button id="gen-go-btn" class="btn btn-primary" style="flex:1">Generate PDF</button>
@@ -81,13 +88,15 @@ async function generateQuickReport() {
     const tpl = document.getElementById('gen-template').value;
     const period = document.getElementById('gen-period').value;
     const agent = document.getElementById('gen-agent').value;
+    const style = document.getElementById('gen-style').value;
     overlay.remove();
 
     const agentParam = agent ? '&agent='+encodeURIComponent(agent) : '';
+    const prefix = style === 'v2' ? '/generate/v2' : '/generate';
 
     if (tpl === 'quick') {
       toast('📄 Quick report generation started...','blue');
-      fetch(API+'/generate/quick?period='+period+agentParam, {method:'POST'}).then(r=>r.json()).then(r => {
+      fetch(API+prefix+'/quick?period='+period+agentParam, {method:'POST'}).then(r=>r.json()).then(r => {
         if (r.download_url) { toast('✅ Report ready!','green'); loadReports(); }
         else { toast('❌ '+(r.detail||'Failed'),'red'); }
       }).catch(e => toast('❌ '+e.message,'red'));
@@ -98,7 +107,15 @@ async function generateQuickReport() {
         else { toast('❌ '+(r.detail||'Failed'),'red'); }
       }).catch(e => toast('❌ '+e.message,'red'));
     } else {
-      generateFromTemplate(tpl, period);
+      // Template-based report
+      const tplUrl = style === 'v2'
+        ? API+'/generate/v2/'+tpl+'?period='+period
+        : API+'/generate/'+tpl+'?period='+period;
+      toast('📄 Report generation started...','blue');
+      fetch(tplUrl, {method:'POST'}).then(r=>r.json()).then(r => {
+        if (r.download_url) { toast('✅ Report ready!','green'); loadReports(); }
+        else { toast('❌ '+(r.detail||'Failed'),'red'); }
+      }).catch(e => toast('❌ '+e.message,'red'));
     }
   };
 }
@@ -260,14 +277,17 @@ async function showExcelDialog() {
   };
 }
 
-async function previewTemplate() {
+async function previewTemplate(useV2) {
   try {
     await saveTemplate();
   } catch(e) { /* ignore save errors */ }
   if (editingTemplate) {
     const period = document.getElementById('tpl-period')?.value || '24h';
     const isInventory = document.getElementById('tpl-name')?.value?.toLowerCase().includes('inventory');
-    const url = isInventory ? API+'/preview/inventory' : API+'/preview/'+editingTemplate+'?period='+period;
+    const prefix = useV2 ? '/preview/v2' : '/preview';
+    const url = isInventory
+      ? API+'/preview/inventory'
+      : API+prefix+'/'+editingTemplate+'?period='+period;
     window.open(url, '_blank');
     toast('Preview opened in new tab','green');
   } else {

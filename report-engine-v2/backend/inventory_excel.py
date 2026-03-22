@@ -46,13 +46,35 @@ def _auto_width(ws):
         ws.column_dimensions[col_letter].width = min(max_len + 3, 50)
 
 def _query_raw(index_pattern, source_fields, agent_filter=None, size=10000):
-    """Get raw documents from an inventory index"""
+    """Get raw documents from an inventory index. Uses scroll for >10K docs."""
     client = opensearch_client.get_client()
-    body = {"size": size, "_source": source_fields}
+    body = {"size": min(size, 10000), "_source": source_fields}
     if agent_filter:
         body["query"] = {"term": {"agent.name": agent_filter}}
-    result = client.search(index=index_pattern, body=body)
-    return [h["_source"] for h in result["hits"]["hits"]]
+
+    # First batch
+    result = client.search(index=index_pattern, body=body, scroll="2m")
+    scroll_id = result.get("_scroll_id")
+    hits = [h["_source"] for h in result["hits"]["hits"]]
+    total = result["hits"]["total"]["value"]
+
+    # Scroll for remaining if needed
+    while len(hits) < total and len(hits) < size and scroll_id:
+        result = client.scroll(scroll_id=scroll_id, scroll="2m")
+        batch = [h["_source"] for h in result["hits"]["hits"]]
+        if not batch:
+            break
+        hits.extend(batch)
+        scroll_id = result.get("_scroll_id")
+
+    # Clear scroll
+    if scroll_id:
+        try:
+            client.clear_scroll(scroll_id=scroll_id)
+        except:
+            pass
+
+    return hits
 
 def _get_nested(obj, path, default=""):
     """Get nested value from dict using dot notation"""
@@ -139,7 +161,7 @@ def generate_inventory_excel(agent_filter=None):
     try:
         docs = _query_raw(f"{idx_prefix}-states-inventory-packages-*",
             ["agent.name", "package.name", "package.version", "package.vendor", "package.architecture", "package.type", "package.size"],
-            agent_filter, 10000)
+            agent_filter, 100000)
         _add_header(ws3, 1, ["Agent", "Package Name", "Version", "Vendor", "Architecture", "Type", "Size"])
         for i, d in enumerate(docs):
             _add_row(ws3, 2+i, [
@@ -321,7 +343,7 @@ def generate_inventory_excel(agent_filter=None):
             ["agent.name", "vulnerability.id", "vulnerability.severity", "vulnerability.description",
              "vulnerability.score.base", "package.name", "package.version", "vulnerability.detected_at",
              "vulnerability.reference", "vulnerability.category"],
-            agent_filter, 10000)
+            agent_filter, 100000)
         _add_header(ws11, 1, ["Agent", "CVE ID", "Severity", "CVSS Score", "Category", "Package", "Version", "Description", "Detected At", "Reference"])
         for i, d in enumerate(docs):
             desc = str(_get_nested(d, "vulnerability.description", ""))

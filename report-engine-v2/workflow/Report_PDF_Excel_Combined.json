@@ -1,0 +1,673 @@
+{
+  "name": "Report Engine - PDF + Excel Combined Email",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-960, -400],
+      "id": "b1000001-0001-0001-0001-000000000001"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"triggerAtHour": 10}]
+        }
+      },
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [-960, -280],
+      "id": "b1000001-0001-0001-0001-000000000002"
+    },
+    {
+      "parameters": {
+        "jsCode": "const REPORT_ENGINE_URL = 'http://172.17.0.1:8447';\nconst TEMPLATE_ID = '9dda0668';\nconst PERIOD = '24h';\nconst REPORT_EMAIL = 'naveen@codesecure.in';\nconst CLIENT_NAME = 'Codesecure Solutions';\nconst CLIENT_ADDRESS = 'Chennai, Tamil Nadu, India';\nconst LOGO_URL = 'https://codesecure.in/images/codesec-logo1.png';\nconst today = new Date().toLocaleDateString('en-IN');\n\nreturn [{\n  json: {\n    report_engine_url: REPORT_ENGINE_URL,\n    template_id: TEMPLATE_ID,\n    period: PERIOD,\n    report_email: REPORT_EMAIL,\n    email_subject: 'Daily Security Report (PDF + Excel) - ' + today,\n    client_name: CLIENT_NAME,\n    client_address: CLIENT_ADDRESS,\n    logo_url: LOGO_URL\n  }\n}];"
+      },
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [-704, -336],
+      "id": "b1000001-0001-0001-0001-000000000003"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/generate/v2/{{$json.template_id}}?period={{$json.period}}",
+        "options": {"timeout": 120000}
+      },
+      "name": "Generate PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, -448],
+      "id": "b1000001-0001-0001-0001-000000000004"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config').item.json.report_engine_url}}{{$json.download_url}}",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-192, -448],
+      "id": "b1000001-0001-0001-0001-000000000005"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/export/security?period={{$json.period}}",
+        "options": {"timeout": 120000}
+      },
+      "name": "Start Excel Export",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, -224],
+      "id": "b1000001-0001-0001-0001-000000000006"
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "name": "Wait Excel",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [-192, -224],
+      "id": "b1000001-0001-0001-0001-000000000007"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config').item.json.report_engine_url}}/api/jobs/{{$('Start Excel Export').item.json.job_id}}/download",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download Excel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [64, -224],
+      "id": "b1000001-0001-0001-0001-000000000008"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "name": "Merge PDF + Excel",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [320, -336],
+      "id": "b1000001-0001-0001-0001-000000000009"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get PDF and Excel from their specific download nodes\nconst pdfBinary = $('Download PDF').first().binary;\nconst excelBinary = $('Download Excel').first().binary;\n\nreturn [{\n  json: {},\n  binary: {\n    data: pdfBinary.data,\n    data1: excelBinary.data\n  }\n}];"
+      },
+      "name": "Combine Attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [576, -336],
+      "id": "b1000001-0001-0001-0001-000000000010"
+    },
+    {
+      "parameters": {
+        "fromEmail": "wazuh@winhms.com",
+        "toEmail": "={{$('Config').item.json.report_email}}",
+        "subject": "={{$('Config').item.json.email_subject}}",
+        "text": "=Hi,\n\nPlease find attached the Daily Security Report for {{$('Config').item.json.client_name}}.\n\nAttachments:\n1. PDF Report - Visual security analysis\n2. Excel Report - Raw security events data\n\nReport Period: {{$('Config').item.json.period}}\nGenerated: {{new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}}\n\nThis is an automated report from Codesecure Report Engine.\n\nRegards,\nCodesecure Solutions",
+        "attachments": "data,data1",
+        "options": {}
+      },
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [832, -336],
+      "id": "b1000001-0001-0001-0001-000000000011",
+      "credentials": {
+        "smtp": {
+          "id": "tO6oKKz2a85ejEh4",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"triggerAtHour": 10, "triggerAtDay": 1}]
+        }
+      },
+      "name": "Weekly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [-960, 80],
+      "id": "b1000001-0001-0001-0002-000000000002"
+    },
+    {
+      "parameters": {
+        "jsCode": "const REPORT_ENGINE_URL = 'http://172.17.0.1:8447';\nconst TEMPLATE_ID = '713b33d1';\nconst PERIOD = '7d';\nconst REPORT_EMAIL = 'naveen@codesecure.in';\nconst CLIENT_NAME = 'Codesecure Solutions';\nconst CLIENT_ADDRESS = 'Chennai, Tamil Nadu, India';\nconst LOGO_URL = 'https://codesecure.in/images/codesec-logo1.png';\nconst today = new Date().toLocaleDateString('en-IN');\n\nreturn [{\n  json: {\n    report_engine_url: REPORT_ENGINE_URL,\n    template_id: TEMPLATE_ID,\n    period: PERIOD,\n    report_email: REPORT_EMAIL,\n    email_subject: 'Weekly Security Report (PDF + Excel) - ' + today,\n    client_name: CLIENT_NAME,\n    client_address: CLIENT_ADDRESS,\n    logo_url: LOGO_URL\n  }\n}];"
+      },
+      "name": "Config Weekly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [-704, 80],
+      "id": "b1000001-0001-0001-0002-000000000003"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/generate/v2/{{$json.template_id}}?period={{$json.period}}",
+        "options": {"timeout": 120000}
+      },
+      "name": "Generate PDF Weekly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, -32],
+      "id": "b1000001-0001-0001-0002-000000000004"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config Weekly').item.json.report_engine_url}}{{$json.download_url}}",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download PDF Weekly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-192, -32],
+      "id": "b1000001-0001-0001-0002-000000000005"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/export/security?period={{$json.period}}",
+        "options": {"timeout": 120000}
+      },
+      "name": "Start Excel Weekly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, 192],
+      "id": "b1000001-0001-0001-0002-000000000006"
+    },
+    {
+      "parameters": {
+        "amount": 25,
+        "unit": "seconds"
+      },
+      "name": "Wait Excel Weekly",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [-192, 192],
+      "id": "b1000001-0001-0001-0002-000000000007"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config Weekly').item.json.report_engine_url}}/api/jobs/{{$('Start Excel Weekly').item.json.job_id}}/download",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download Excel Weekly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [64, 192],
+      "id": "b1000001-0001-0001-0002-000000000008"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "name": "Merge Weekly",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [320, 80],
+      "id": "b1000001-0001-0001-0002-000000000009"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pdfBinary = $('Download PDF Weekly').first().binary;\nconst excelBinary = $('Download Excel Weekly').first().binary;\n\nreturn [{\n  json: {},\n  binary: {\n    data: pdfBinary.data,\n    data1: excelBinary.data\n  }\n}];"
+      },
+      "name": "Combine Weekly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [576, 80],
+      "id": "b1000001-0001-0001-0002-000000000010"
+    },
+    {
+      "parameters": {
+        "fromEmail": "wazuh@winhms.com",
+        "toEmail": "={{$('Config Weekly').item.json.report_email}}",
+        "subject": "={{$('Config Weekly').item.json.email_subject}}",
+        "text": "=Hi,\n\nPlease find attached the Weekly Security Report for {{$('Config Weekly').item.json.client_name}}.\n\nAttachments:\n1. PDF Report - Visual security analysis\n2. Excel Report - Raw security events data\n\nReport Period: Last 7 Days\nGenerated: {{new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}}\n\nThis is an automated report from Codesecure Report Engine.\n\nRegards,\nCodesecure Solutions",
+        "attachments": "data,data1",
+        "options": {}
+      },
+      "name": "Send Email Weekly",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [832, 80],
+      "id": "b1000001-0001-0001-0002-000000000011",
+      "credentials": {
+        "smtp": {
+          "id": "tO6oKKz2a85ejEh4",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"triggerAtHour": 10, "triggerAtDay": 1}]
+        }
+      },
+      "name": "Monthly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [-960, 496],
+      "id": "b1000001-0001-0001-0003-000000000002"
+    },
+    {
+      "parameters": {
+        "jsCode": "const REPORT_ENGINE_URL = 'http://172.17.0.1:8447';\nconst TEMPLATE_ID = '2ad281f6';\nconst PERIOD = '30d';\nconst REPORT_EMAIL = 'naveen@codesecure.in';\nconst CLIENT_NAME = 'Codesecure Solutions';\nconst CLIENT_ADDRESS = 'Chennai, Tamil Nadu, India';\nconst LOGO_URL = 'https://codesecure.in/images/codesec-logo1.png';\nconst today = new Date().toLocaleDateString('en-IN');\n\nreturn [{\n  json: {\n    report_engine_url: REPORT_ENGINE_URL,\n    template_id: TEMPLATE_ID,\n    period: PERIOD,\n    report_email: REPORT_EMAIL,\n    email_subject: 'Monthly Security Report (PDF + Excel) - ' + today,\n    client_name: CLIENT_NAME,\n    client_address: CLIENT_ADDRESS,\n    logo_url: LOGO_URL\n  }\n}];"
+      },
+      "name": "Config Monthly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [-704, 496],
+      "id": "b1000001-0001-0001-0003-000000000003"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/generate/v2/{{$json.template_id}}?period={{$json.period}}",
+        "options": {"timeout": 120000}
+      },
+      "name": "Generate PDF Monthly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, 384],
+      "id": "b1000001-0001-0001-0003-000000000004"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config Monthly').item.json.report_engine_url}}{{$json.download_url}}",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download PDF Monthly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-192, 384],
+      "id": "b1000001-0001-0001-0003-000000000005"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/export/security?period={{$json.period}}",
+        "options": {"timeout": 120000}
+      },
+      "name": "Start Excel Monthly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, 608],
+      "id": "b1000001-0001-0001-0003-000000000006"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "name": "Wait Excel Monthly",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [-192, 608],
+      "id": "b1000001-0001-0001-0003-000000000007"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config Monthly').item.json.report_engine_url}}/api/jobs/{{$('Start Excel Monthly').item.json.job_id}}/download",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download Excel Monthly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [64, 608],
+      "id": "b1000001-0001-0001-0003-000000000008"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "name": "Merge Monthly",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [320, 496],
+      "id": "b1000001-0001-0001-0003-000000000009"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pdfBinary = $('Download PDF Monthly').first().binary;\nconst excelBinary = $('Download Excel Monthly').first().binary;\n\nreturn [{\n  json: {},\n  binary: {\n    data: pdfBinary.data,\n    data1: excelBinary.data\n  }\n}];"
+      },
+      "name": "Combine Monthly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [576, 496],
+      "id": "b1000001-0001-0001-0003-000000000010"
+    },
+    {
+      "parameters": {
+        "fromEmail": "wazuh@winhms.com",
+        "toEmail": "={{$('Config Monthly').item.json.report_email}}",
+        "subject": "={{$('Config Monthly').item.json.email_subject}}",
+        "text": "=Hi,\n\nPlease find attached the Monthly Security Report for {{$('Config Monthly').item.json.client_name}}.\n\nAttachments:\n1. PDF Report - Visual security analysis\n2. Excel Report - Raw security events data\n\nReport Period: Last 30 Days\nGenerated: {{new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}}\n\nThis is an automated report from Codesecure Report Engine.\n\nRegards,\nCodesecure Solutions",
+        "attachments": "data,data1",
+        "options": {}
+      },
+      "name": "Send Email Monthly",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [832, 496],
+      "id": "b1000001-0001-0001-0003-000000000011",
+      "credentials": {
+        "smtp": {
+          "id": "tO6oKKz2a85ejEh4",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"triggerAtHour": 10, "triggerAtDay": 1}]
+        }
+      },
+      "name": "Inventory Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [-960, 912],
+      "id": "b1000001-0001-0001-0004-000000000002"
+    },
+    {
+      "parameters": {
+        "jsCode": "const REPORT_ENGINE_URL = 'http://172.17.0.1:8447';\nconst REPORT_EMAIL = 'naveen@codesecure.in';\nconst CLIENT_NAME = 'Codesecure Solutions';\nconst CLIENT_ADDRESS = 'Chennai, Tamil Nadu, India';\nconst LOGO_URL = 'https://codesecure.in/images/codesec-logo1.png';\nconst today = new Date().toLocaleDateString('en-IN');\n\nreturn [{\n  json: {\n    report_engine_url: REPORT_ENGINE_URL,\n    report_email: REPORT_EMAIL,\n    email_subject: 'IT Asset Inventory (PDF + Excel) - ' + today,\n    client_name: CLIENT_NAME,\n    client_address: CLIENT_ADDRESS,\n    logo_url: LOGO_URL\n  }\n}];"
+      },
+      "name": "Config Inventory",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [-704, 912],
+      "id": "b1000001-0001-0001-0004-000000000003"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/generate/v2/inventory",
+        "options": {"timeout": 120000}
+      },
+      "name": "Generate Inventory PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, 800],
+      "id": "b1000001-0001-0001-0004-000000000004"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config Inventory').item.json.report_engine_url}}{{$json.download_url}}",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download Inventory PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-192, 800],
+      "id": "b1000001-0001-0001-0004-000000000005"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/generate/inventory/excel/async",
+        "options": {"timeout": 120000}
+      },
+      "name": "Start Inventory Excel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [-448, 1024],
+      "id": "b1000001-0001-0001-0004-000000000006"
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "name": "Wait Inventory",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [-192, 1024],
+      "id": "b1000001-0001-0001-0004-000000000007"
+    },
+    {
+      "parameters": {
+        "url": "={{$('Config Inventory').item.json.report_engine_url}}/api/jobs/{{$('Start Inventory Excel').item.json.job_id}}/download",
+        "options": {
+          "response": {
+            "response": {"responseFormat": "file"}
+          }
+        }
+      },
+      "name": "Download Inventory Excel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [64, 1024],
+      "id": "b1000001-0001-0001-0004-000000000008"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "name": "Merge Inventory",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [320, 912],
+      "id": "b1000001-0001-0001-0004-000000000009"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pdfBinary = $('Download Inventory PDF').first().binary;\nconst excelBinary = $('Download Inventory Excel').first().binary;\n\nreturn [{\n  json: {},\n  binary: {\n    data: pdfBinary.data,\n    data1: excelBinary.data\n  }\n}];"
+      },
+      "name": "Combine Inventory",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [576, 912],
+      "id": "b1000001-0001-0001-0004-000000000010"
+    },
+    {
+      "parameters": {
+        "fromEmail": "wazuh@winhms.com",
+        "toEmail": "={{$('Config Inventory').item.json.report_email}}",
+        "subject": "={{$('Config Inventory').item.json.email_subject}}",
+        "text": "=Hi,\n\nPlease find attached the IT Asset Inventory Report for {{$('Config Inventory').item.json.client_name}}.\n\nAttachments:\n1. PDF Report - Visual inventory summary\n2. Excel Report - Full asset inventory data\n\nGenerated: {{new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}}\n\nThis is an automated report from Codesecure Report Engine.\n\nRegards,\nCodesecure Solutions",
+        "attachments": "data,data1",
+        "options": {}
+      },
+      "name": "Send Email Inventory",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [832, 912],
+      "id": "b1000001-0001-0001-0004-000000000011",
+      "credentials": {
+        "smtp": {
+          "id": "tO6oKKz2a85ejEh4",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{"node": "Config", "type": "main", "index": 0}]]
+    },
+    "Daily Schedule": {
+      "main": [[{"node": "Config", "type": "main", "index": 0}]]
+    },
+    "Config": {
+      "main": [
+        [
+          {"node": "Generate PDF", "type": "main", "index": 0},
+          {"node": "Start Excel Export", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Generate PDF": {
+      "main": [[{"node": "Download PDF", "type": "main", "index": 0}]]
+    },
+    "Download PDF": {
+      "main": [[{"node": "Merge PDF + Excel", "type": "main", "index": 0}]]
+    },
+    "Start Excel Export": {
+      "main": [[{"node": "Wait Excel", "type": "main", "index": 0}]]
+    },
+    "Wait Excel": {
+      "main": [[{"node": "Download Excel", "type": "main", "index": 0}]]
+    },
+    "Download Excel": {
+      "main": [[{"node": "Merge PDF + Excel", "type": "main", "index": 1}]]
+    },
+    "Merge PDF + Excel": {
+      "main": [[{"node": "Combine Attachments", "type": "main", "index": 0}]]
+    },
+    "Combine Attachments": {
+      "main": [[{"node": "Send Email", "type": "main", "index": 0}]]
+    },
+    "Weekly Schedule": {
+      "main": [[{"node": "Config Weekly", "type": "main", "index": 0}]]
+    },
+    "Config Weekly": {
+      "main": [
+        [
+          {"node": "Generate PDF Weekly", "type": "main", "index": 0},
+          {"node": "Start Excel Weekly", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Generate PDF Weekly": {
+      "main": [[{"node": "Download PDF Weekly", "type": "main", "index": 0}]]
+    },
+    "Download PDF Weekly": {
+      "main": [[{"node": "Merge Weekly", "type": "main", "index": 0}]]
+    },
+    "Start Excel Weekly": {
+      "main": [[{"node": "Wait Excel Weekly", "type": "main", "index": 0}]]
+    },
+    "Wait Excel Weekly": {
+      "main": [[{"node": "Download Excel Weekly", "type": "main", "index": 0}]]
+    },
+    "Download Excel Weekly": {
+      "main": [[{"node": "Merge Weekly", "type": "main", "index": 1}]]
+    },
+    "Merge Weekly": {
+      "main": [[{"node": "Combine Weekly", "type": "main", "index": 0}]]
+    },
+    "Combine Weekly": {
+      "main": [[{"node": "Send Email Weekly", "type": "main", "index": 0}]]
+    },
+    "Monthly Schedule": {
+      "main": [[{"node": "Config Monthly", "type": "main", "index": 0}]]
+    },
+    "Config Monthly": {
+      "main": [
+        [
+          {"node": "Generate PDF Monthly", "type": "main", "index": 0},
+          {"node": "Start Excel Monthly", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Generate PDF Monthly": {
+      "main": [[{"node": "Download PDF Monthly", "type": "main", "index": 0}]]
+    },
+    "Download PDF Monthly": {
+      "main": [[{"node": "Merge Monthly", "type": "main", "index": 0}]]
+    },
+    "Start Excel Monthly": {
+      "main": [[{"node": "Wait Excel Monthly", "type": "main", "index": 0}]]
+    },
+    "Wait Excel Monthly": {
+      "main": [[{"node": "Download Excel Monthly", "type": "main", "index": 0}]]
+    },
+    "Download Excel Monthly": {
+      "main": [[{"node": "Merge Monthly", "type": "main", "index": 1}]]
+    },
+    "Merge Monthly": {
+      "main": [[{"node": "Combine Monthly", "type": "main", "index": 0}]]
+    },
+    "Combine Monthly": {
+      "main": [[{"node": "Send Email Monthly", "type": "main", "index": 0}]]
+    },
+    "Inventory Schedule": {
+      "main": [[{"node": "Config Inventory", "type": "main", "index": 0}]]
+    },
+    "Config Inventory": {
+      "main": [
+        [
+          {"node": "Generate Inventory PDF", "type": "main", "index": 0},
+          {"node": "Start Inventory Excel", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Generate Inventory PDF": {
+      "main": [[{"node": "Download Inventory PDF", "type": "main", "index": 0}]]
+    },
+    "Download Inventory PDF": {
+      "main": [[{"node": "Merge Inventory", "type": "main", "index": 0}]]
+    },
+    "Start Inventory Excel": {
+      "main": [[{"node": "Wait Inventory", "type": "main", "index": 0}]]
+    },
+    "Wait Inventory": {
+      "main": [[{"node": "Download Inventory Excel", "type": "main", "index": 0}]]
+    },
+    "Download Inventory Excel": {
+      "main": [[{"node": "Merge Inventory", "type": "main", "index": 1}]]
+    },
+    "Merge Inventory": {
+      "main": [[{"node": "Combine Inventory", "type": "main", "index": 0}]]
+    },
+    "Combine Inventory": {
+      "main": [[{"node": "Send Email Inventory", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {},
+  "tags": []
+}

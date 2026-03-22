@@ -12,3 +12,6 @@ GOTENBERG_URL = os.getenv("GOTENBERG_URL", "http://gotenberg:3000")
 REPORTS_DIR = os.getenv("REPORTS_DIR", "/app/reports")
 TEMPLATES_DIR = os.getenv("TEMPLATES_DIR", "/app/data/templates")
 DB_PATH = os.getenv("DB_PATH", "/app/data/report_engine.db")
+
+# Auto-cleanup: "daily", "weekly", "off" (default: off)
+CLEANUP_SCHEDULE = os.getenv("CLEANUP_SCHEDULE", "off")

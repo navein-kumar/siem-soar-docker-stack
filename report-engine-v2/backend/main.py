@@ -4,8 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any
-import json, os, uuid, threading
+import json, os, uuid, threading, logging
+from apscheduler.schedulers.background import BackgroundScheduler
 import config, database, opensearch_client
+
+log = logging.getLogger("report-engine")
 from pdf_generator import generate_report, generate_quick_report
 from pdf_generator_v2 import generate_report_v2, generate_quick_report_v2
 from inventory_report import generate_inventory_report
@@ -20,10 +23,39 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # Async job tracker
 jobs = {}  # {job_id: {status, progress, message, result, error}}
 
+def _auto_cleanup():
+    """Delete all report files and DB records."""
+    count = 0
+    freed = 0
+    if os.path.exists(config.REPORTS_DIR):
+        for f in os.listdir(config.REPORTS_DIR):
+            fpath = os.path.join(config.REPORTS_DIR, f)
+            if os.path.isfile(fpath):
+                freed += os.path.getsize(fpath)
+                os.remove(fpath)
+                count += 1
+    db = database.get_db()
+    db.execute("DELETE FROM reports")
+    db.commit()
+    db.close()
+    mb = round(freed / 1024 / 1024, 2)
+    log.info(f"Auto-cleanup: purged {count} files, freed {mb} MB")
+
 @app.on_event("startup")
 def startup():
     database.init_db()
     os.makedirs(config.REPORTS_DIR, exist_ok=True)
+    # Auto-cleanup scheduler
+    schedule = config.CLEANUP_SCHEDULE.lower()
+    if schedule in ("daily", "weekly"):
+        scheduler = BackgroundScheduler()
+        if schedule == "daily":
+            scheduler.add_job(_auto_cleanup, "cron", hour=0, minute=0)
+            log.info("Auto-cleanup scheduled: daily at midnight")
+        else:
+            scheduler.add_job(_auto_cleanup, "cron", day_of_week="sun", hour=0)
+            log.info("Auto-cleanup scheduled: weekly on Sunday midnight")
+        scheduler.start()
 
 # --- FIELD DISCOVERY ---
 @app.get("/api/fields")
@@ -110,6 +142,35 @@ def list_templates():
 def create_template(t: TemplateData):
     return {"id": database.create_template(t.dict())}
 
+@app.put("/api/templates/bulk/company")
+def update_all_company(body: dict):
+    """Update company details across ALL templates at once."""
+    db = database.get_db()
+    templates = db.execute("SELECT id FROM templates").fetchall()
+    fields = {}
+    for key in [
+        "description", "client_address",
+        "logo_url", "cover_color", "cover_accent"
+    ]:
+        if key in body:
+            fields[key] = body[key]
+    if not fields:
+        raise HTTPException(400, "No valid fields provided")
+    set_clause = ", ".join(f"{k}=?" for k in fields)
+    vals = list(fields.values())
+    db.execute(
+        f"UPDATE templates SET {set_clause}, "
+        f"updated_at=datetime('now')",
+        vals
+    )
+    db.commit()
+    count = len(templates)
+    db.close()
+    return {
+        "message": f"Updated {count} templates",
+        "fields_updated": list(fields.keys())
+    }
+
 @app.get("/api/templates/{tid}")
 def get_template(tid: str):
     t = database.get_template(tid)
@@ -163,6 +224,29 @@ def delete_widget(wid: str):
 def list_reports(limit: int = 50):
     return {"reports": database.get_reports(limit)}
 
+@app.delete("/api/reports/purge/all")
+def purge_all_reports():
+    """Delete ALL report files and DB records."""
+    deleted_files = 0
+    freed_bytes = 0
+    if os.path.exists(config.REPORTS_DIR):
+        for f in os.listdir(config.REPORTS_DIR):
+            fpath = os.path.join(config.REPORTS_DIR, f)
+            if os.path.isfile(fpath):
+                freed_bytes += os.path.getsize(fpath)
+                os.remove(fpath)
+                deleted_files += 1
+    db = database.get_db()
+    db.execute("DELETE FROM reports")
+    db.commit()
+    db.close()
+    freed_mb = round(freed_bytes / 1024 / 1024, 2)
+    return {
+        "message": f"Purged {deleted_files} files, freed {freed_mb} MB",
+        "files_deleted": deleted_files,
+        "freed_mb": freed_mb
+    }
+
 @app.get("/api/reports/{rid}/download")
 def download_report(rid: str):
     reports = database.get_reports(100)
@@ -181,11 +265,9 @@ def delete_report(rid: str):
     report = next((r for r in reports if r["id"] == rid), None)
     if not report:
         raise HTTPException(404, "Not found")
-    # Delete file
     filepath = os.path.join(config.REPORTS_DIR, report["filename"])
     if os.path.exists(filepath):
         os.remove(filepath)
-    # Delete DB record
     db = database.get_db()
     db.execute("DELETE FROM reports WHERE id=?", (rid,))
     db.commit()

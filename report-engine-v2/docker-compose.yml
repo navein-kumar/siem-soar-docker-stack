@@ -1,21 +1,30 @@
+## Report Engine v2 - Production (Docker Hub images)
+## Usage:
+##   docker-compose pull && docker-compose up -d
+##
+## First-time setup:
+##   curl -X PUT "http://localhost:8447/api/templates/bulk/company" \
+##     -H "Content-Type: application/json" \
+##     -d '{"description":"Your Company","client_address":"City, Country","logo_url":"https://..."}'
+##
+## Access: http://your-server:8447
+
 services:
   backend:
-    build: ./backend
+    image: navinkr431/report-engine-backend:v2.0
     container_name: report-engine-api
     volumes:
       - ./data:/app/data
       - ./reports:/app/reports
     environment:
-      - OPENSEARCH_URL=https://wazuh.indexer:9200
+      - OPENSEARCH_URL=https://your-opensearch:9200
       - OPENSEARCH_USER=admin
-      - OPENSEARCH_PASS=SecretPassword@123
+      - OPENSEARCH_PASS=your-password
       - OPENSEARCH_INDEX=wazuh-alerts-*
       - GOTENBERG_URL=http://gotenberg:3000
-      - EXCEL_MAX_ROWS=200000
-      - REQUEST_TIMEOUT=600
-    networks:
-      - default
-      - wazuh-network
+      - CLEANUP_SCHEDULE=weekly
+    depends_on:
+      - gotenberg
     restart: unless-stopped
 
   gotenberg:
@@ -24,18 +33,10 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: nginx:alpine
+    image: navinkr431/report-engine-frontend:v2.0
     container_name: report-engine-web
     ports:
       - "8447:80"
-    volumes:
-      - ./frontend:/usr/share/nginx/html:ro
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     restart: unless-stopped
-
-networks:
-  wazuh-network:
-    external: true
-    name: wazuh-n8n-singlenode_default

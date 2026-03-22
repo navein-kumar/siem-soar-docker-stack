@@ -168,7 +168,96 @@ def collect_inventory_data():
         data["users_logged_in"] = 0
         data["users_disabled"] = 0
 
-    # 7. Vulnerabilities
+    # 7. Browser Extensions
+    try:
+        idx_prefix = config.OPENSEARCH_INDEX.split('-')[0]
+        r = _query(f"{idx_prefix}-states-inventory-browser-extensions-*", {
+            "by_browser": {"terms": {"field": "browser.name", "size": 10}},
+            "top_extensions": {"terms": {"field": "package.name", "size": 15}},
+            "by_agent": {"terms": {"field": "agent.name", "size": 15}},
+            "enabled": {"filter": {"term": {"package.enabled": True}}},
+            "disabled": {"filter": {"term": {"package.enabled": False}}}
+        })
+        data["total_extensions"] = r["hits"]["total"]["value"]
+        data["ext_by_browser"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_browser"]["buckets"]]
+        data["top_extensions"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["top_extensions"]["buckets"]]
+        data["ext_by_agent"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_agent"]["buckets"]]
+        data["ext_enabled"] = r["aggregations"]["enabled"]["doc_count"]
+        data["ext_disabled"] = r["aggregations"]["disabled"]["doc_count"]
+    except:
+        data["total_extensions"] = 0
+        data["ext_by_browser"] = []
+        data["top_extensions"] = []
+        data["ext_by_agent"] = []
+        data["ext_enabled"] = 0
+        data["ext_disabled"] = 0
+
+    # 8. Network Interfaces & Addresses
+    try:
+        r = _query(f"{idx_prefix}-states-inventory-interfaces-*", {
+            "by_state": {"terms": {"field": "interface.state", "size": 5}},
+            "top_interfaces": {"terms": {"field": "interface.name", "size": 10}},
+            "by_agent": {"terms": {"field": "agent.name", "size": 15}}
+        })
+        data["total_interfaces"] = r["hits"]["total"]["value"]
+        data["iface_by_state"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_state"]["buckets"]]
+        data["top_interfaces"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["top_interfaces"]["buckets"]]
+        data["iface_by_agent"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_agent"]["buckets"]]
+    except:
+        data["total_interfaces"] = 0
+        data["iface_by_state"] = []
+        data["top_interfaces"] = []
+        data["iface_by_agent"] = []
+
+    try:
+        r = _query(f"{idx_prefix}-states-inventory-networks-*", {
+            "by_type": {"terms": {"field": "network.type", "size": 5}},
+            "unique_ips": {"cardinality": {"field": "network.ip"}},
+            "top_ips": {"terms": {"field": "network.ip", "size": 15}},
+            "by_agent": {"terms": {"field": "agent.name", "size": 15}}
+        })
+        data["total_networks"] = r["hits"]["total"]["value"]
+        data["net_by_type"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_type"]["buckets"]]
+        data["unique_ips"] = r["aggregations"]["unique_ips"]["value"]
+        data["top_network_ips"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["top_ips"]["buckets"]]
+        data["net_by_agent"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_agent"]["buckets"]]
+    except:
+        data["total_networks"] = 0
+        data["net_by_type"] = []
+        data["unique_ips"] = 0
+        data["top_network_ips"] = []
+        data["net_by_agent"] = []
+
+    # 9. User Details (groups, shells)
+    try:
+        r = _query(f"{idx_prefix}-states-inventory-users-*", {
+            "top_users": {"terms": {"field": "user.name", "size": 15}},
+            "groups": {"terms": {"field": "user.groups", "size": 15}},
+            "shells": {"terms": {"field": "user.shell", "size": 10}}
+        })
+        data["top_usernames"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["top_users"]["buckets"]]
+        data["user_groups"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["groups"]["buckets"]]
+        data["user_shells"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["shells"]["buckets"]]
+    except:
+        data["top_usernames"] = []
+        data["user_groups"] = []
+        data["user_shells"] = []
+
+    # 10. Windows Hotfixes
+    try:
+        r = _query(f"{idx_prefix}-states-inventory-hotfixes-*", {
+            "top_hotfixes": {"terms": {"field": "package.hotfix.name", "size": 15}},
+            "by_agent": {"terms": {"field": "agent.name", "size": 15}}
+        })
+        data["total_hotfixes"] = r["hits"]["total"]["value"]
+        data["top_hotfixes"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["top_hotfixes"]["buckets"]]
+        data["hotfix_by_agent"] = [{"name": b["key"], "count": b["doc_count"]} for b in r["aggregations"]["by_agent"]["buckets"]]
+    except:
+        data["total_hotfixes"] = 0
+        data["top_hotfixes"] = []
+        data["hotfix_by_agent"] = []
+
+    # 11. Vulnerabilities
     try:
         r = _query(f"{config.OPENSEARCH_INDEX.split('-')[0]}-states-vulnerabilities-*", {
             "by_severity": {"terms": {"field": "vulnerability.severity", "size": 5}},
@@ -197,6 +286,11 @@ def collect_inventory_data():
     return data
 
 
+def _render_hotfixes(d):
+    if d.get("total_hotfixes", 0) == 0:
+        return ""
+    return '<div class="page"><div class="hdr"><h2>Windows Hotfixes</h2><p>' + _fc(d["total_hotfixes"]) + ' hotfixes installed across Windows endpoints</p></div><div style="display:flex;gap:12px;margin-bottom:12px"><div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#3498db"></span>Top Hotfixes (KB Articles)</div>' + _stbl(d["top_hotfixes"], "name", "Hotfix", "Agents", "#3498db") + '</div><div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e67e22"></span>Hotfixes per Agent</div>' + _stbl(d["hotfix_by_agent"], "name", "Agent", "Hotfixes", "#e67e22") + '</div></div></div>'
+
 def render_inventory_html(d, template_cfg=None):
     """Render inventory management report HTML"""
     now = datetime.now(IST)
@@ -213,8 +307,10 @@ def render_inventory_html(d, template_cfg=None):
     logo_html = f'<div style="margin-bottom:40px;display:inline-flex;align-items:center;justify-content:center;background:#fff;padding:16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15)"><img src="{client_logo}" style="height:40px;display:block" onerror="this.style.display=\'none\'"/></div>' if client_logo else ""
 
     # Summary cards
-    windows_count = sum(o["count"] for o in d["os_platform"] if o["name"] == "windows")
-    linux_count = sum(o["count"] for o in d["os_platform"] if o["name"] == "linux")
+    windows_count = sum(o["count"] for o in d["os_platform"] if o["name"].lower() == "windows")
+    linux_count = sum(o["count"] for o in d["os_platform"] if o["name"].lower() in ("linux", "ubuntu", "centos", "rhel", "debian", "fedora", "amazon", "suse"))
+    mac_count = sum(o["count"] for o in d["os_platform"] if o["name"].lower() in ("darwin", "macos", "macosx"))
+    other_count = d["total_endpoints"] - windows_count - linux_count - mac_count
 
     # SVG charts
     os_donut = svg_donut([{"value": o["count"], "color": PALETTE[i % 15]} for i, o in enumerate(d["os_distribution"])], 180, 180, 70, 45) if d["os_distribution"] else ""
@@ -278,6 +374,8 @@ def render_inventory_html(d, template_cfg=None):
     <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0f4ff;border:1px solid #b3c6ff"><div style="font-size:28px;font-weight:800;color:#3498db">{_fc(d["total_endpoints"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Total Endpoints</div></div>
     <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0fdf4;border:1px solid #a3cfbb"><div style="font-size:28px;font-weight:800;color:#2ecc71">{_fc(windows_count)}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Windows</div></div>
     <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fef9f0;border:1px solid #f5d6a3"><div style="font-size:28px;font-weight:800;color:#e67e22">{_fc(linux_count)}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Linux</div></div>
+    {"" if mac_count == 0 else f'<div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f5f0ff;border:1px solid #d5c6f5"><div style="font-size:28px;font-weight:800;color:#9b59b6">{_fc(mac_count)}</div><div style="font-size:9px;color:#69707D;margin-top:4px">macOS</div></div>'}
+    {"" if other_count <= 0 else f'<div style="flex:1;text-align:center;padding:14px;border-radius:8px;border:1px solid #ecf0f1"><div style="font-size:28px;font-weight:800;color:#95a5a6">{_fc(other_count)}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Other</div></div>'}
     <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fdf2f2;border:1px solid #f5c6cb"><div style="font-size:28px;font-weight:800;color:#9b59b6">{d["avg_memory_usage"]}%</div><div style="font-size:9px;color:#69707D;margin-top:4px">Avg Memory Usage</div></div>
   </div>
   <div style="display:flex;gap:12px;margin-bottom:12px">
@@ -340,6 +438,57 @@ def render_inventory_html(d, template_cfg=None):
     <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e67e22"></span>Users per Agent</div>{_stbl(d["users_by_agent"], "name", "Agent", "Users", "#e67e22")}</div>
   </div>
 </div>
+
+<!-- BROWSER EXTENSIONS -->
+<div class="page">
+  <div class="hdr"><h2>Browser Extensions</h2><p>{_fc(d["total_extensions"])} extensions across endpoints</p></div>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0f4ff;border:1px solid #b3c6ff"><div style="font-size:28px;font-weight:800;color:#3498db">{_fc(d["total_extensions"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Total Extensions</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0fdf4;border:1px solid #a3cfbb"><div style="font-size:28px;font-weight:800;color:#2ecc71">{_fc(d["ext_enabled"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Enabled</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fdf2f2;border:1px solid #f5c6cb"><div style="font-size:28px;font-weight:800;color:#e74c3c">{_fc(d["ext_disabled"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Disabled</div></div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:12px">
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#3498db"></span>By Browser</div>{_stbl(d["ext_by_browser"], "name", "Browser", "Extensions", "#3498db")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e67e22"></span>Top Extensions</div>{_stbl(d["top_extensions"][:10], "name", "Extension Name", "Agents", "#e67e22", font="7px")}</div>
+  </div>
+</div>
+
+<!-- NETWORK INTERFACES & ADDRESSES -->
+<div class="page">
+  <div class="hdr"><h2>Network Interfaces &amp; Addresses</h2><p>{_fc(d["total_interfaces"])} interfaces, {_fc(d["total_networks"])} network addresses, {d["unique_ips"]} unique IPs</p></div>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0f4ff;border:1px solid #b3c6ff"><div style="font-size:28px;font-weight:800;color:#3498db">{_fc(d["total_interfaces"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Interfaces</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0fdf4;border:1px solid #a3cfbb"><div style="font-size:28px;font-weight:800;color:#2ecc71">{_fc(d["total_networks"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Network Addresses</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fef9f0;border:1px solid #f5d6a3"><div style="font-size:28px;font-weight:800;color:#e67e22">{d["unique_ips"]}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Unique IPs</div></div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:12px">
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#3498db"></span>Top Interface Names</div>{_stbl(d["top_interfaces"], "name", "Interface", "Count", "#3498db")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#2ecc71"></span>Network Type</div>{_stbl(d["net_by_type"], "name", "Type", "Count", "#2ecc71")}</div>
+  </div>
+  <div class="card"><div class="stitle"><span class="dot" style="background:#9b59b6"></span>Network IP Addresses</div>{_stbl(d["top_network_ips"][:15], "name", "IP Address", "Interfaces", "#9b59b6", font="7.5px")}</div>
+</div>
+
+<!-- USER ACCOUNTS & GROUPS -->
+<div class="page">
+  <div class="hdr"><h2>User Accounts &amp; Groups</h2><p>{_fc(d["total_users"])} user accounts, {len(d["user_groups"])} groups</p></div>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0f4ff;border:1px solid #b3c6ff"><div style="font-size:28px;font-weight:800;color:#3498db">{_fc(d["total_users"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Total Users</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#f0fdf4;border:1px solid #a3cfbb"><div style="font-size:28px;font-weight:800;color:#2ecc71">{_fc(d["users_logged_in"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Active Sessions</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fdf2f2;border:1px solid #f5c6cb"><div style="font-size:28px;font-weight:800;color:#e74c3c">{_fc(d["users_disabled"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Inactive</div></div>
+    <div style="flex:1;text-align:center;padding:14px;border-radius:8px;background:#fef9f0;border:1px solid #f5d6a3"><div style="font-size:28px;font-weight:800;color:#e67e22">{len(d["user_groups"])}</div><div style="font-size:9px;color:#69707D;margin-top:4px">Groups</div></div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:12px">
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#3498db"></span>Top Users</div>{_stbl(d["top_usernames"][:10], "name", "Username", "Agents", "#3498db")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#2ecc71"></span>User Groups</div>{_stbl(d["user_groups"][:10], "name", "Group", "Members", "#2ecc71")}</div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:12px">
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#9b59b6"></span>User Shells</div>{_stbl(d["user_shells"], "name", "Shell", "Users", "#9b59b6", font="7px")}</div>
+    <div class="card" style="flex:1"><div class="stitle"><span class="dot" style="background:#e67e22"></span>Users per Agent</div>{_stbl(d["users_by_agent"], "name", "Agent", "Users", "#e67e22")}</div>
+  </div>
+</div>
+
+<!-- WINDOWS HOTFIXES -->
+{_render_hotfixes(d)}
 
 <!-- VULNERABILITY POSTURE -->
 <div class="page">

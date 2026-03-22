@@ -296,7 +296,7 @@ def render_inventory_html(d, template_cfg=None):
     now = datetime.now(IST)
     cover_color = "#1B2A4A"
     cover_accent = "#0D7377"
-    client_name = "Codesec Technologies"
+    client_name = "Codesecure Solutions"
     client_logo = "https://codesecure.in/images/codesec-logo1.png"
     if template_cfg:
         cover_color = template_cfg.get("cover_color", cover_color)

@@ -258,7 +258,7 @@ def process_data(raw, template_cfg=None, period="24h"):
     ct = "Security Threat Analysis Report"
     cs = "Daily Security Alert Analysis"
     cc, ca = "#1B2A4A", "#0D7377"
-    cn, caddr = "Codesec Technologies", "Chennai, Tamil Nadu, India"
+    cn, caddr = "Codesecure Solutions", "Chennai, Tamil Nadu, India"
     cl = "https://codesecure.in/images/codesec-logo1.png"
     pl = {"24h":"Last 24 Hours","7d":"Last 7 Days","30d":"Last 30 Days"}.get(period, period)
     if template_cfg:

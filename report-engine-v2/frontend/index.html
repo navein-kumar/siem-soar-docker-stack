@@ -645,7 +645,8 @@ async function loadTemplates() {
       </div>
       <div class="flex gap-2">
         <button onclick="editTemplate('${t.id}')" class="btn btn-outline flex-1 text-xs">Edit</button>
-        <button onclick="generateFromTemplate('${t.id}',document.getElementById('period-${t.id}').value)" class="btn btn-primary flex-1 text-xs">Generate</button>
+        <button onclick="${t.name.toLowerCase().includes('inventory') ? "generateInventoryPDF()" : "generateFromTemplate('"+t.id+"',document.getElementById('period-"+t.id+"').value)"}" class="btn btn-primary flex-1 text-xs">Generate</button>
+        ${t.name.toLowerCase().includes('inventory') ? '<button onclick="showExcelDialog()" class="btn text-xs" style="background:#217346;color:#fff;flex:1">📊 Excel</button>' : ''}
         <button onclick="deleteTemplate('${t.id}')" class="btn btn-danger text-xs">✕</button>
       </div>
     </div>
@@ -838,6 +839,34 @@ function pollJob(jobId) {
     });
   };
   setTimeout(check, 2000);
+}
+
+async function generateInventoryPDF() {
+  toast('📄 Inventory report generation started...','blue');
+  fetch(API+'/generate/inventory', {method:'POST'}).then(r=>r.json()).then(r => {
+    if (r.download_url) {
+      toast('✅ Inventory report ready! ' + ((r.size/1024).toFixed(0)) + 'KB','green');
+      window.open(r.download_url,'_blank');
+      loadReports();
+    } else {
+      toast('❌ ' + (r.detail || 'Failed'),'red');
+    }
+  }).catch(e => toast('❌ Error: '+e.message,'red'));
+}
+
+async function showExcelDialog() {
+  // Load agents for dropdown
+  let agents = [];
+  try {
+    const r = await fetch(API+'/agents').then(r=>r.json());
+    agents = r.agents || [];
+  } catch(e) {}
+
+  const opts = agents.map(a => '<option value="'+a+'">'+a+'</option>').join('');
+  const dialog = document.createElement('div');
+  dialog.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center';
+  dialog.innerHTML = '<div style="background:#fff;border-radius:12px;padding:24px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2)"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px">📊 Export Inventory to Excel</h3><div style="margin-bottom:12px"><label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Filter by Agent</label><select id="excel-agent" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px"><option value="">All Agents ('+agents.length+')</option>'+opts+'</select></div><div style="margin-bottom:16px;font-size:11px;color:#95a5a6">Exports all inventory data (hardware, software, processes, ports, services, users, vulnerabilities) to a multi-sheet Excel workbook.</div><div style="display:flex;gap:8px"><button onclick="this.closest(\'div[style]\').remove();generateInventoryExcel(document.getElementById(\'excel-agent\').value)" class="btn btn-primary" style="flex:1;background:#217346">Export Excel</button><button onclick="this.closest(\'div[style]\').remove()" class="btn btn-secondary" style="flex:1">Cancel</button></div></div>';
+  document.body.appendChild(dialog);
 }
 
 async function previewTemplate() {

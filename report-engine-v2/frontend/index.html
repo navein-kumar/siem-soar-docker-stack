@@ -24,6 +24,7 @@
     <button onclick="showTab('query')" id="tab-query" class="px-4 py-2 text-sm">Query Builder</button>
     <button onclick="showTab('widgets')" id="tab-widgets" class="px-4 py-2 text-sm">Widgets</button>
     <button onclick="showTab('templates')" id="tab-templates" class="px-4 py-2 text-sm">Templates</button>
+    <button onclick="showTab('compare')" id="tab-compare" class="px-4 py-2 text-sm">Compare</button>
     <button onclick="showTab('reports')" id="tab-reports" class="px-4 py-2 text-sm">Reports</button>
   </div>
   <div id="health-badge" class="text-xs px-3 py-1 rounded-full bg-gray-100">Connecting...</div>
@@ -38,16 +39,31 @@
     <div class="card p-5 border-l-4 border-l-purple-500"><div class="text-xs text-gray-500 font-medium mb-1">Templates</div><div id="os-templates" class="text-xl font-bold text-gray-800">--</div></div>
     <div class="card p-5 border-l-4 border-l-orange-500"><div class="text-xs text-gray-500 font-medium mb-1">Reports</div><div id="os-reports" class="text-xl font-bold text-gray-800">--</div></div>
   </div>
-  <div class="grid grid-cols-2 gap-4">
+  <div class="grid grid-cols-3 gap-4 mb-4">
+    <div class="card p-5">
+      <h3 class="font-semibold text-gray-700 mb-3">Severity Distribution (24h)</h3>
+      <div style="height:200px;position:relative"><canvas id="dash-severity"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-gray-700 mb-3">Alert Timeline (24h)</h3>
+      <div style="height:200px;position:relative"><canvas id="dash-timeline"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-gray-700 mb-3">Top Agents (24h)</h3>
+      <div style="height:200px;position:relative"><canvas id="dash-agents"></canvas></div>
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-4">
     <div class="card p-5">
       <h3 class="font-semibold text-gray-700 mb-3">Quick Actions</h3>
       <div class="flex flex-col gap-2">
-        <button onclick="showTab('query')" class="btn btn-outline text-left">🔍 Query Builder — Explore & visualize data</button>
-        <button onclick="showTab('templates')" class="btn btn-outline text-left">📄 Template Builder — Create report templates</button>
-        <button onclick="generateQuickReport()" class="btn btn-primary text-left">⚡ Generate Quick Report — Daily summary PDF</button>
+        <button onclick="showTab('query')" class="btn btn-outline text-left text-xs">🔍 Query Builder — Explore & visualize data</button>
+        <button onclick="showTab('templates')" class="btn btn-outline text-left text-xs">📄 Templates — Create report templates</button>
+        <button onclick="showTab('compare')" class="btn btn-outline text-left text-xs">📊 Compare — Period vs period analysis</button>
+        <button onclick="generateQuickReport()" class="btn btn-primary text-left text-xs">⚡ Generate Report</button>
       </div>
     </div>
-    <div class="card p-5">
+    <div class="card p-5 col-span-2">
       <h3 class="font-semibold text-gray-700 mb-3">Recent Reports</h3>
       <div id="recent-reports" class="text-sm text-gray-500">Loading...</div>
     </div>
@@ -235,11 +251,35 @@
 </div>
 
 <!-- REPORTS TAB -->
+<!-- COMPARE TAB -->
+<div id="page-compare" class="p-6 hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold text-gray-800">Period Comparison</h2>
+    <div class="flex gap-2 items-center">
+      <select id="compare-preset" class="text-sm" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px" onchange="loadComparison()">
+        <option value="0">Today vs Yesterday</option>
+        <option value="1">This Week vs Last Week</option>
+        <option value="2">This Month vs Last Month</option>
+        <option value="3">Last 7d vs Previous 7d</option>
+        <option value="4">Last 30d vs Previous 30d</option>
+      </select>
+      <select id="compare-agent" class="text-sm" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px" onchange="loadComparison()">
+        <option value="">All Agents</option>
+      </select>
+      <button onclick="loadComparison()" class="btn btn-primary text-sm">Compare</button>
+    </div>
+  </div>
+  <div id="compare-results">
+    <div class="text-center text-gray-400 py-12">Select a comparison preset and click Compare</div>
+  </div>
+</div>
+
 <div id="page-reports" class="p-6 hidden">
   <div class="flex justify-between items-center mb-4">
     <h2 class="text-xl font-bold text-gray-800">Report Archive</h2>
     <div class="flex gap-2">
       <button data-delete-all class="btn text-xs" style="border:1px solid #e74c3c;color:#e74c3c;padding:8px 16px;cursor:pointer">🗑 Delete All</button>
+      <button onclick="showExcelExportDialog()" class="btn" style="background:#217346;color:#fff;font-weight:600">📊 Excel Export</button>
       <button onclick="generateQuickReport()" class="btn btn-primary">⚡ Generate Now</button>
     </div>
   </div>
@@ -254,6 +294,7 @@
 <script src="js/widgets.js"></script>
 <script src="js/templates.js"></script>
 <script src="js/reports.js"></script>
+<script src="js/comparison.js"></script>
 <script>
   // Initialize on load
   document.addEventListener('DOMContentLoaded', init);

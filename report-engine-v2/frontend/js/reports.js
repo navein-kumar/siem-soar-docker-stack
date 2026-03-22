@@ -18,13 +18,89 @@ async function generateFromTemplate(tid, periodOverride) {
 }
 
 async function generateQuickReport() {
-  toast('📄 Quick report generation started in background...','blue');
-  fetch(API+'/generate/quick', {method:'POST'}).then(r=>r.json()).then(r => {
-    if (r.download_url) {
-      toast('✅ Quick report ready! Check Reports tab','green');
-      loadReports();
+  // Load templates + agents for unified dialog
+  let templates = [], agents = [];
+  try {
+    const [tR, aR] = await Promise.all([
+      fetch(API+'/templates').then(r=>r.json()),
+      fetch(API+'/agents').then(r=>r.json())
+    ]);
+    templates = (tR.templates || []).sort((a,b) => {
+      const na = parseInt(a.name.match(/^(\d+)/)?.[1] || '999');
+      const nb = parseInt(b.name.match(/^(\d+)/)?.[1] || '999');
+      return na - nb;
+    });
+    agents = aR.agents || [];
+  } catch(e) {}
+
+  const tplOpts = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  const agentOpts = agents.map(a => `<option value="${a}">${a}</option>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'gen-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:460px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">📄 Generate PDF Report</h3>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Report Template</label>
+      <select id="gen-template" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="quick">Quick Report (All Sections)</option>
+        <option value="inventory">IT Asset Inventory</option>
+        ${tplOpts}
+      </select>
+    </div>
+    <div style="margin-bottom:12px" id="gen-period-row">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Period</label>
+      <select id="gen-period" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="24h">Last 24 Hours</option>
+        <option value="7d">Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+        <option value="90d">Last 90 Days</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Filter by Agent</label>
+      <select id="gen-agent" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="">All Agents (${agents.length})</option>${agentOpts}
+      </select>
+    </div>
+    <div style="margin-bottom:16px;font-size:11px;color:#95a5a6">Generates a PDF report with cover page, charts, and data tables. Runs in background.</div>
+    <div style="display:flex;gap:8px">
+      <button id="gen-go-btn" class="btn btn-primary" style="flex:1">Generate PDF</button>
+      <button id="gen-no-btn" class="btn btn-secondary" style="flex:1">Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  document.getElementById('gen-template').onchange = function() {
+    document.getElementById('gen-period-row').style.display = this.value === 'inventory' ? 'none' : 'block';
+  };
+
+  document.getElementById('gen-no-btn').onclick = () => overlay.remove();
+  document.getElementById('gen-go-btn').onclick = () => {
+    const tpl = document.getElementById('gen-template').value;
+    const period = document.getElementById('gen-period').value;
+    const agent = document.getElementById('gen-agent').value;
+    overlay.remove();
+
+    const agentParam = agent ? '&agent='+encodeURIComponent(agent) : '';
+
+    if (tpl === 'quick') {
+      toast('📄 Quick report generation started...','blue');
+      fetch(API+'/generate/quick?period='+period+agentParam, {method:'POST'}).then(r=>r.json()).then(r => {
+        if (r.download_url) { toast('✅ Report ready!','green'); loadReports(); }
+        else { toast('❌ '+(r.detail||'Failed'),'red'); }
+      }).catch(e => toast('❌ '+e.message,'red'));
+    } else if (tpl === 'inventory') {
+      toast('📄 Inventory report generation started...','blue');
+      fetch(API+'/generate/inventory?'+agentParam.substring(1), {method:'POST'}).then(r=>r.json()).then(r => {
+        if (r.download_url) { toast('✅ Inventory report ready!','green'); loadReports(); }
+        else { toast('❌ '+(r.detail||'Failed'),'red'); }
+      }).catch(e => toast('❌ '+e.message,'red'));
+    } else {
+      generateFromTemplate(tpl, period);
     }
-  }).catch(e => toast('❌ Error: '+e.message,'red'));
+  };
 }
 
 async function generateInventoryExcel(agent) {
@@ -52,6 +128,101 @@ function pollJob(jobId) {
     });
   };
   setTimeout(check, 2000);
+}
+
+// Security Events Excel
+async function exportSecurityExcel(period, agent) {
+  const params = new URLSearchParams();
+  if (period) params.set('period', period);
+  if (agent) params.set('agent', agent);
+  toast('📊 Security Events Excel export started...','blue');
+  fetch(API+'/export/security?'+params.toString(), {method:'POST'}).then(r=>r.json()).then(r => {
+    if (r.job_id) pollJob(r.job_id);
+  }).catch(e => toast('Error: '+e.message,'red'));
+}
+
+// Auth Events Excel
+async function exportAuthExcel(period, agent) {
+  const params = new URLSearchParams();
+  if (period) params.set('period', period);
+  if (agent) params.set('agent', agent);
+  toast('📊 Auth Events Excel export started...','blue');
+  fetch(API+'/export/auth?'+params.toString(), {method:'POST'}).then(r=>r.json()).then(r => {
+    if (r.job_id) pollJob(r.job_id);
+  }).catch(e => toast('Error: '+e.message,'red'));
+}
+
+// Vulnerability Excel
+async function exportVulnExcel(agent) {
+  const params = agent ? '?agent='+encodeURIComponent(agent) : '';
+  toast('📊 Vulnerability Excel export started...','blue');
+  fetch(API+'/export/vulnerability'+params, {method:'POST'}).then(r=>r.json()).then(r => {
+    if (r.job_id) pollJob(r.job_id);
+  }).catch(e => toast('Error: '+e.message,'red'));
+}
+
+// Universal Excel Export Dialog
+async function showExcelExportDialog() {
+  let agents = [];
+  try {
+    const r = await fetch(API+'/agents').then(r=>r.json());
+    agents = r.agents || [];
+  } catch(e) {}
+
+  const opts = agents.map(a => '<option value="'+a+'">'+a+'</option>').join('');
+  const overlay = document.createElement('div');
+  overlay.id = 'excel-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:440px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">📊 Excel Data Export</h3>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Export Type</label>
+      <select id="excel-type" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="security">Security Events (alerts, rules, agents, MITRE, compliance)</option>
+        <option value="auth">Authentication Events (login failures/successes)</option>
+        <option value="vulnerability">Vulnerability Assessment (all CVEs)</option>
+        <option value="inventory">IT Asset Inventory (hardware, software, ports, users)</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px" id="excel-period-row">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Period</label>
+      <select id="excel-period" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="24h">Last 24 Hours</option>
+        <option value="7d">Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+        <option value="90d">Last 90 Days</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Filter by Agent</label>
+      <select id="excel-agent" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="">All Agents (${agents.length})</option>${opts}
+      </select>
+    </div>
+    <div style="margin-bottom:16px;font-size:11px;color:#95a5a6">Exports raw data to multi-sheet Excel workbook. Large exports run in background.</div>
+    <div style="display:flex;gap:8px">
+      <button id="excel-go-btn" class="btn" style="flex:1;background:#217346;color:#fff;font-weight:700">Export Excel</button>
+      <button id="excel-no-btn" class="btn btn-secondary" style="flex:1">Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  // Toggle period row based on type
+  document.getElementById('excel-type').onchange = function() {
+    document.getElementById('excel-period-row').style.display = (this.value === 'inventory' || this.value === 'vulnerability') ? 'none' : 'block';
+  };
+
+  document.getElementById('excel-no-btn').onclick = () => overlay.remove();
+  document.getElementById('excel-go-btn').onclick = () => {
+    const type = document.getElementById('excel-type').value;
+    const period = document.getElementById('excel-period').value;
+    const agent = document.getElementById('excel-agent').value;
+    overlay.remove();
+    if (type === 'security') exportSecurityExcel(period, agent);
+    else if (type === 'auth') exportAuthExcel(period, agent);
+    else if (type === 'vulnerability') exportVulnExcel(agent);
+    else if (type === 'inventory') generateInventoryExcel(agent);
+  };
 }
 
 async function generateInventoryPDF() {
@@ -94,7 +265,11 @@ async function previewTemplate() {
     await saveTemplate();
   } catch(e) { /* ignore save errors */ }
   if (editingTemplate) {
-    generateFromTemplate(editingTemplate);
+    const period = document.getElementById('tpl-period')?.value || '24h';
+    const isInventory = document.getElementById('tpl-name')?.value?.toLowerCase().includes('inventory');
+    const url = isInventory ? API+'/preview/inventory' : API+'/preview/'+editingTemplate+'?period='+period;
+    window.open(url, '_blank');
+    toast('Preview opened in new tab','green');
   } else {
     toast('Save template first','red');
   }

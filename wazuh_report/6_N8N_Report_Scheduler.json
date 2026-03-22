@@ -1,0 +1,106 @@
+{
+  "name": "Report Engine - Scheduled PDF + Email",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "id": "manual-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"triggerAtHour": 10}]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 500],
+      "id": "schedule-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// CONFIGURATION - Edit these values\n// ============================================\nconst REPORT_ENGINE_URL = 'http://report-engine-api:8000';\n\n// Template ID from Report Engine\n// Get from: http://YOUR_SERVER:8447 → Templates → Edit → URL has template ID\nconst TEMPLATE_ID = 'REPLACE_WITH_TEMPLATE_ID';\n\n// Period: 24h, 7d, 30d, 90d\nconst PERIOD = '24h';\n\n// Email settings\nconst REPORT_EMAIL = 'naveen@codesecure.in';\nconst EMAIL_SUBJECT = 'Daily Security Report - ' + new Date().toLocaleDateString('en-IN');\nconst CLIENT_NAME = 'Codesecure Solutions';\n\nreturn [{\n  json: {\n    report_engine_url: REPORT_ENGINE_URL,\n    template_id: TEMPLATE_ID,\n    period: PERIOD,\n    report_email: REPORT_EMAIL,\n    email_subject: EMAIL_SUBJECT,\n    client_name: CLIENT_NAME\n  }\n}];"
+      },
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [450, 400],
+      "id": "config"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.report_engine_url}}/api/generate/{{$json.template_id}}?period={{$json.period}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [700, 400],
+      "id": "generate-report"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('Config').item.json.report_engine_url}}{{$json.download_url}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [950, 400],
+      "id": "download-pdf"
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@codesecure.in",
+        "toEmail": "={{$('Config').item.json.report_email}}",
+        "subject": "={{$('Config').item.json.email_subject}}",
+        "text": "Hi,\n\nPlease find attached the security report for {{$('Config').item.json.client_name}}.\n\nReport Period: {{$('Config').item.json.period}}\nGenerated: {{new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}}\n\nThis is an automated report from Codesecure Report Engine.\n\nRegards,\nCodesecure Solutions",
+        "options": {
+          "attachments": "data"
+        }
+      },
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1200, 400],
+      "id": "send-email",
+      "credentials": {
+        "smtp": {
+          "id": "1",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{"node": "Config", "type": "main", "index": 0}]]
+    },
+    "Schedule Trigger": {
+      "main": [[{"node": "Config", "type": "main", "index": 0}]]
+    },
+    "Config": {
+      "main": [[{"node": "Generate Report", "type": "main", "index": 0}]]
+    },
+    "Generate Report": {
+      "main": [[{"node": "Download PDF", "type": "main", "index": 0}]]
+    },
+    "Download PDF": {
+      "main": [[{"node": "Send Email", "type": "main", "index": 0}]]
+    }
+  }
+}

@@ -9,6 +9,8 @@ import config, database, opensearch_client
 from pdf_generator import generate_report, generate_quick_report
 from inventory_report import generate_inventory_report
 from inventory_excel import generate_inventory_excel
+from security_excel import export_security_events, export_auth_events, export_vulnerability
+from comparison import compare_periods
 
 app = FastAPI(title="Codesec Report Engine", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -167,7 +169,8 @@ def download_report(rid: str):
     filepath = os.path.join(config.REPORTS_DIR, report["filename"])
     if not os.path.exists(filepath):
         raise HTTPException(404, "File not found")
-    return FileResponse(filepath, media_type="application/pdf", filename=report["filename"])
+    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if report["filename"].endswith(".xlsx") else "application/pdf"
+    return FileResponse(filepath, media_type=mime, filename=report["filename"])
 
 @app.delete("/api/reports/{rid}")
 def delete_report(rid: str):
@@ -211,18 +214,14 @@ def gen_inventory_excel_sync(agent: Optional[str] = None):
         raise HTTPException(500, str(e))
 
 # --- ASYNC JOB SYSTEM ---
-def _run_excel_job(job_id, agent_filter):
-    """Background worker for Excel generation"""
+def _run_job(job_id, export_fn, label, *args):
+    """Generic background worker for any export function"""
     try:
         jobs[job_id]["status"] = "processing"
         jobs[job_id]["progress"] = 10
-        jobs[job_id]["message"] = "Connecting to OpenSearch..."
-
-        result = generate_inventory_excel(agent_filter, progress_callback=lambda p, m: _update_job(job_id, p, m))
-
-        # Save to report archive
-        rid = database.save_report(None, result["filename"], "Inventory Snapshot", agent_filter or "All Agents", result["size"])
-
+        jobs[job_id]["message"] = f"Starting {label}..."
+        result = export_fn(*args, progress_cb=lambda p, m: _update_job(job_id, p, m))
+        rid = database.save_report(None, result["filename"], label, args[0] if args else "All", result["size"])
         jobs[job_id]["status"] = "completed"
         jobs[job_id]["progress"] = 100
         jobs[job_id]["message"] = "Ready for download"
@@ -232,19 +231,37 @@ def _run_excel_job(job_id, agent_filter):
         jobs[job_id]["error"] = str(e)
         jobs[job_id]["message"] = f"Error: {str(e)}"
 
+def _start_job(export_fn, label, *args):
+    job_id = str(uuid.uuid4())[:8]
+    jobs[job_id] = {"status": "queued", "progress": 0, "message": "Starting...", "result": None, "error": None}
+    t = threading.Thread(target=_run_job, args=(job_id, export_fn, label, *args), daemon=True)
+    t.start()
+    return {"job_id": job_id, "status": "queued"}
+
 def _update_job(job_id, progress, message):
     if job_id in jobs:
         jobs[job_id]["progress"] = progress
         jobs[job_id]["message"] = message
 
+# Inventory Excel
 @app.post("/api/generate/inventory/excel/async")
 def gen_inventory_excel_async(agent: Optional[str] = None):
-    """Async Excel export with progress tracking"""
-    job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status": "queued", "progress": 0, "message": "Starting...", "result": None, "error": None}
-    t = threading.Thread(target=_run_excel_job, args=(job_id, agent), daemon=True)
-    t.start()
-    return {"job_id": job_id, "status": "queued"}
+    return _start_job(lambda a, progress_cb=None: generate_inventory_excel(a, progress_callback=progress_cb), "Inventory Excel", agent)
+
+# Security Events Excel
+@app.post("/api/export/security")
+def export_security_excel(period: Optional[str] = "24h", agent: Optional[str] = None):
+    return _start_job(lambda p, a, progress_cb=None: export_security_events(p, a, progress_cb), "Security Events Excel", period, agent)
+
+# Auth Events Excel
+@app.post("/api/export/auth")
+def export_auth_excel(period: Optional[str] = "24h", agent: Optional[str] = None):
+    return _start_job(lambda p, a, progress_cb=None: export_auth_events(p, a, progress_cb), "Auth Events Excel", period, agent)
+
+# Vulnerability Excel
+@app.post("/api/export/vulnerability")
+def export_vuln_excel(agent: Optional[str] = None):
+    return _start_job(lambda a, progress_cb=None: export_vulnerability(a, progress_cb), "Vulnerability Excel", agent)
 
 @app.get("/api/jobs/{job_id}")
 def get_job_status(job_id: str):
@@ -291,6 +308,58 @@ async def gen_report(tid: str, period: Optional[str] = "24h"):
     if err:
         raise HTTPException(400, err)
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
+
+# --- PDF PREVIEW (renders HTML in browser, no PDF download) ---
+@app.get("/api/preview/quick")
+async def preview_quick(period: Optional[str] = "24h"):
+    from fastapi.responses import HTMLResponse
+    try:
+        import pdf_generator
+        query = pdf_generator.build_query(period)
+        client = opensearch_client.get_client()
+        raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
+        data = pdf_generator.process_data(raw, period=period)
+        html = pdf_generator.render_html(data)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
+
+@app.get("/api/preview/inventory")
+async def preview_inventory():
+    from fastapi.responses import HTMLResponse
+    try:
+        from inventory_report import collect_inventory_data, render_inventory_html
+        data = collect_inventory_data()
+        html = render_inventory_html(data)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
+
+@app.get("/api/preview/{tid}")
+async def preview_report(tid: str, period: Optional[str] = "24h"):
+    from fastapi.responses import HTMLResponse
+    template = database.get_template(tid)
+    if not template:
+        raise HTTPException(404, "Template not found")
+    try:
+        import pdf_generator
+        query = pdf_generator.build_query(period)
+        client = opensearch_client.get_client()
+        raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
+        data = pdf_generator.process_data(raw, template, period)
+        sections = json.loads(template["sections"]) if isinstance(template["sections"], str) else template["sections"]
+        html = pdf_generator.render_html(data, sections)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
+
+# --- COMPARISON ---
+@app.get("/api/compare")
+def compare(period_a: str = "now-24h", period_b: str = "now-48h/now-24h", agent: Optional[str] = None):
+    try:
+        return compare_periods(period_a, period_b, agent)
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # --- HEALTH ---
 @app.get("/api/health")

@@ -33,8 +33,8 @@ async function loadTemplates() {
       <div class="flex gap-2">
         <button onclick="editTemplate('${t.id}')" class="btn btn-outline flex-1 text-xs">Edit</button>
         <button onclick="${t.name.toLowerCase().includes('inventory') ? "generateInventoryPDF()" : "generateFromTemplate('"+t.id+"',document.getElementById('period-"+t.id+"').value)"}" class="btn btn-primary flex-1 text-xs">Generate</button>
-        ${t.name.toLowerCase().includes('inventory') ? '<button onclick="showExcelDialog()" class="btn text-xs" style="background:#217346;color:#fff;flex:1">📊 Excel</button>' : ''}
-        <button onclick="deleteTemplate('${t.id}')" class="btn btn-danger text-xs">✕</button>
+        <button onclick="${t.name.toLowerCase().includes('inventory') ? "showExcelDialog()" : "showExcelExportDialog()"}" class="btn text-xs" style="background:#217346;color:#fff;flex:1">📊 Excel</button>
+        ${/^\d+\./.test(t.name) ? '' : '<button onclick="deleteTemplate(\''+t.id+'\')" class="btn btn-danger text-xs">✕</button>'}
       </div>
     </div>
   `).join('');

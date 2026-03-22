@@ -5,6 +5,12 @@
 // ============================================================
 // APP.JS - Global state, initialization, tab navigation
 // ============================================================
+// Register Chart.js plugins
+if (typeof ChartDataLabels !== 'undefined') {
+  Chart.register(ChartDataLabels);
+  Chart.defaults.plugins.datalabels = { display: false };  // disabled by default
+}
+
 const API = '/api';
 let allFields = [];
 let currentChart = null;
@@ -95,15 +101,74 @@ async function init() {
     document.getElementById('os-reports').textContent = r.reports.length;
     renderRecentReports(r.reports.slice(0,5));
   } catch(e) {}
+
+  // Dashboard live charts
+  loadDashboardCharts();
+}
+
+async function loadDashboardCharts() {
+  // Severity donut
+  try {
+    const sev = await fetch(API+'/aggregate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({group_by:'rule.level', time_from:'now-24h', size:20})}).then(r=>r.json());
+    const sevData = {Critical:0, High:0, Medium:0, Low:0};
+    sev.data.forEach(d => {
+      const l = parseInt(d.label);
+      if (l >= 15) sevData.Critical += d.value;
+      else if (l >= 12) sevData.High += d.value;
+      else if (l >= 7) sevData.Medium += d.value;
+      else sevData.Low += d.value;
+    });
+    const ctx = document.getElementById('dash-severity');
+    if (ctx) new Chart(ctx, {
+      type:'doughnut', data:{labels:['Critical','High','Medium','Low'],
+        datasets:[{data:[sevData.Critical,sevData.High,sevData.Medium,sevData.Low],
+          backgroundColor:['#BD271E','#E7664C','#D6BF57','#6DCCB1'],borderColor:'#fff',borderWidth:3}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+        plugins:{legend:{position:'right',labels:{font:{size:11},usePointStyle:true}},datalabels:{display:false}}}
+    });
+  } catch(e) {}
+
+  // Timeline
+  try {
+    const tl = await fetch(API+'/aggregate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({group_by:'_date_histogram', time_from:'now-24h', size:24})}).then(r=>r.json());
+    const ctx2 = document.getElementById('dash-timeline');
+    if (ctx2 && tl.data.length > 0) new Chart(ctx2, {
+      type:'line', data:{labels:tl.data.map(d=>d.label.substring(11,16)||d.label),
+        datasets:[{data:tl.data.map(d=>d.value),borderColor:'#0D7377',backgroundColor:'rgba(13,115,119,0.1)',
+          fill:true,tension:0.3,pointRadius:2,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9}}}}}
+    });
+  } catch(e) {}
+
+  // Top Agents bar
+  try {
+    const ag = await fetch(API+'/aggregate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({group_by:'agent.name', time_from:'now-24h', size:8})}).then(r=>r.json());
+    const ctx3 = document.getElementById('dash-agents');
+    if (ctx3 && ag.data.length > 0) new Chart(ctx3, {
+      type:'bar', data:{labels:ag.data.map(d=>d.label.length>12?d.label.substring(0,12)+'..':d.label),
+        datasets:[{data:ag.data.map(d=>d.value),backgroundColor:'#0D7377',borderRadius:6}]},
+      options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+        plugins:{legend:{display:false},datalabels:{display:false}},
+        scales:{x:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9}}},y:{grid:{display:false},ticks:{font:{size:10}}}}}
+    });
+  } catch(e) {}
 }
 
 // TABS
 function showTab(tab) {
-  ['dashboard','query','widgets','templates','reports'].forEach(t => {
-    document.getElementById('page-'+t).classList.toggle('hidden', t!==tab);
-    document.getElementById('tab-'+t).classList.toggle('tab-active', t===tab);
+  ['dashboard','query','widgets','templates','compare','reports'].forEach(t => {
+    const page = document.getElementById('page-'+t);
+    const tabEl = document.getElementById('tab-'+t);
+    if (page) page.classList.toggle('hidden', t!==tab);
+    if (tabEl) tabEl.classList.toggle('tab-active', t===tab);
   });
   if (tab==='widgets') loadWidgets();
   if (tab==='templates') loadTemplates();
   if (tab==='reports') loadReports();
+  if (tab==='compare') { populateCompareAgents(); loadComparison(); }
 }

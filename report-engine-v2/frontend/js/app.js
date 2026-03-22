@@ -51,6 +51,7 @@ function selectChartColor(el, color) {
 
 // INIT
 async function init() {
+  try { renderFilters(); } catch(e) {}
   try { await loadWidgetSections(); } catch(e) { console.log('loadWidgetSections:', e); }
   try {
     const h = await fetch(API+'/health').then(r=>r.json());

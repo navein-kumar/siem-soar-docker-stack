@@ -1,8 +1,7 @@
 // ============================================================
-// UTILS.JS - Auto-generated from index.html
+// UTILS.JS - Toast notifications and helper functions
 // ============================================================
 
-// UTILS
 function toast(msg, color='green') {
   const t = document.createElement('div');
   t.className = 'toast';
@@ -11,7 +10,3 @@ function toast(msg, color='green') {
   document.body.appendChild(t);
   setTimeout(()=>t.remove(), 3000);
 }
-
-// Init
-init();
-renderFilters();

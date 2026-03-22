@@ -2,17 +2,7 @@
 ## Usage:
 ##   docker compose -f docker-compose.prod.yml up -d
 ##
-## Images:
-##   navinkr431/report-engine-backend:v2.0
-##   navinkr431/report-engine-frontend:v2.0
-##   gotenberg/gotenberg:8
-##
-## Ports:
-##   8447 - Web UI + API (nginx reverse proxy)
-##
-## Volumes:
-##   report-engine-data    - SQLite database (templates, reports metadata)
-##   report-engine-reports - Generated PDF/Excel files
+## Access: http://your-server:8447
 
 services:
   backend:
@@ -22,10 +12,10 @@ services:
       - report-engine-data:/app/data
       - report-engine-reports:/app/reports
     environment:
-      - OPENSEARCH_URL=${OPENSEARCH_URL:-https://localhost:9200}
-      - OPENSEARCH_USER=${OPENSEARCH_USER:-admin}
-      - OPENSEARCH_PASS=${OPENSEARCH_PASS:-admin}
-      - OPENSEARCH_INDEX=${OPENSEARCH_INDEX:-wazuh-alerts-*}
+      - OPENSEARCH_URL=https://3.111.21.35:9200
+      - OPENSEARCH_USER=admin
+      - OPENSEARCH_PASS=mpp7NHNOmSy8cAc2iAp*AhgUaE7k+lTB
+      - OPENSEARCH_INDEX=wazuh-alerts-*
       - GOTENBERG_URL=http://gotenberg:3000
     depends_on:
       - gotenberg
@@ -40,7 +30,7 @@ services:
     image: navinkr431/report-engine-frontend:v2.0
     container_name: report-engine-web
     ports:
-      - "${PORT:-8447}:80"
+      - "8447:80"
     depends_on:
       - backend
     restart: unless-stopped

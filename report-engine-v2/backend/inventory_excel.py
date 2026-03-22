@@ -7,6 +7,7 @@ from openpyxl.utils import get_column_letter
 import config, opensearch_client
 
 IST = timezone(timedelta(hours=5, minutes=30))
+MAX_ROWS = int(os.getenv("EXCEL_MAX_ROWS", "200000"))
 
 # Styles
 HEADER_FONT = Font(name='Segoe UI', bold=True, size=10, color='FFFFFF')
@@ -86,14 +87,19 @@ def _get_nested(obj, path, default=""):
             return default
     return obj if obj is not None else default
 
-def generate_inventory_excel(agent_filter=None):
+def generate_inventory_excel(agent_filter=None, progress_callback=None):
     """Generate multi-sheet Excel inventory workbook"""
+    def _progress(pct, msg):
+        if progress_callback:
+            progress_callback(pct, msg)
+
     wb = Workbook()
     idx_prefix = config.OPENSEARCH_INDEX.split('-')[0]
     now = datetime.now(IST)
     agent_label = agent_filter or "All Agents"
 
     # ============================================================
+    _progress(5, "Building summary...")
     # Sheet 1: Summary
     # ============================================================
     ws = wb.active
@@ -129,6 +135,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws)
 
     # ============================================================
+    _progress(10, "Pulling hardware data...")
     # Sheet 2: Hardware
     # ============================================================
     ws2 = wb.create_sheet("Hardware")
@@ -155,13 +162,14 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws2)
 
     # ============================================================
+    _progress(20, "Pulling software packages...")
     # Sheet 3: Software/Packages
     # ============================================================
     ws3 = wb.create_sheet("Packages")
     try:
         docs = _query_raw(f"{idx_prefix}-states-inventory-packages-*",
             ["agent.name", "package.name", "package.version", "package.vendor", "package.architecture", "package.type", "package.size"],
-            agent_filter, 100000)
+            agent_filter, MAX_ROWS)
         _add_header(ws3, 1, ["Agent", "Package Name", "Version", "Vendor", "Architecture", "Type", "Size"])
         for i, d in enumerate(docs):
             _add_row(ws3, 2+i, [
@@ -178,6 +186,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws3)
 
     # ============================================================
+    _progress(30, "Pulling running processes...")
     # Sheet 4: Processes
     # ============================================================
     ws4 = wb.create_sheet("Processes")
@@ -199,6 +208,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws4)
 
     # ============================================================
+    _progress(40, "Pulling ports & listeners...")
     # Sheet 5: Ports & Listeners
     # ============================================================
     ws5 = wb.create_sheet("Ports & Listeners")
@@ -224,6 +234,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws5)
 
     # ============================================================
+    _progress(50, "Pulling services...")
     # Sheet 6: Services
     # ============================================================
     ws6 = wb.create_sheet("Services")
@@ -246,6 +257,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws6)
 
     # ============================================================
+    _progress(60, "Pulling user accounts...")
     # Sheet 7: Users
     # ============================================================
     ws7 = wb.create_sheet("Users")
@@ -272,6 +284,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws7)
 
     # ============================================================
+    _progress(65, "Pulling browser extensions...")
     # Sheet 8: Browser Extensions
     # ============================================================
     ws8 = wb.create_sheet("Browser Extensions")
@@ -295,6 +308,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws8)
 
     # ============================================================
+    _progress(72, "Pulling network data...")
     # Sheet 9: Network
     # ============================================================
     ws9 = wb.create_sheet("Network")
@@ -317,6 +331,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws9)
 
     # ============================================================
+    _progress(78, "Pulling hotfixes...")
     # Sheet 10: Hotfixes
     # ============================================================
     ws10 = wb.create_sheet("Hotfixes")
@@ -335,6 +350,7 @@ def generate_inventory_excel(agent_filter=None):
     _auto_width(ws10)
 
     # ============================================================
+    _progress(85, "Pulling vulnerabilities (may take a while)...")
     # Sheet 11: Vulnerabilities
     # ============================================================
     ws11 = wb.create_sheet("Vulnerabilities")
@@ -343,7 +359,7 @@ def generate_inventory_excel(agent_filter=None):
             ["agent.name", "vulnerability.id", "vulnerability.severity", "vulnerability.description",
              "vulnerability.score.base", "package.name", "package.version", "vulnerability.detected_at",
              "vulnerability.reference", "vulnerability.category"],
-            agent_filter, 100000)
+            agent_filter, MAX_ROWS)
         _add_header(ws11, 1, ["Agent", "CVE ID", "Severity", "CVSS Score", "Category", "Package", "Version", "Description", "Detected At", "Reference"])
         for i, d in enumerate(docs):
             desc = str(_get_nested(d, "vulnerability.description", ""))
@@ -365,6 +381,7 @@ def generate_inventory_excel(agent_filter=None):
         ws11.cell(row=1, column=1, value="No vulnerability data available")
     _auto_width(ws11)
 
+    _progress(95, "Writing Excel file...")
     # Save
     fname = f"inventory_{agent_label.replace(' ','_')}_{now.strftime('%Y%m%d_%H%M')}.xlsx"
     fpath = os.path.join(config.REPORTS_DIR, fname)

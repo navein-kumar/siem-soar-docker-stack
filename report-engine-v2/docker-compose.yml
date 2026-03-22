@@ -11,6 +11,8 @@ services:
       - OPENSEARCH_PASS=SecretPassword@123
       - OPENSEARCH_INDEX=wazuh-alerts-*
       - GOTENBERG_URL=http://gotenberg:3000
+      - EXCEL_MAX_ROWS=200000
+      - REQUEST_TIMEOUT=600
     networks:
       - default
       - wazuh-network

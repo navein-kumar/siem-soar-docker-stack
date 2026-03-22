@@ -1,10 +1,10 @@
 """Report Engine API - FastAPI backend"""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any
-import json, os
+import json, os, uuid, threading
 import config, database, opensearch_client
 from pdf_generator import generate_report, generate_quick_report
 from inventory_report import generate_inventory_report
@@ -12,6 +12,9 @@ from inventory_excel import generate_inventory_excel
 
 app = FastAPI(title="Codesec Report Engine", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Async job tracker
+jobs = {}  # {job_id: {status, progress, message, result, error}}
 
 @app.on_event("startup")
 def startup():
@@ -199,12 +202,73 @@ async def gen_inventory(tid: Optional[str] = None, agent: Optional[str] = None):
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
 
 @app.post("/api/generate/inventory/excel")
-def gen_inventory_excel(agent: Optional[str] = None):
+def gen_inventory_excel_sync(agent: Optional[str] = None):
+    """Synchronous Excel export - for small datasets"""
     try:
         result = generate_inventory_excel(agent)
         return FileResponse(result["filepath"], media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=result["filename"])
     except Exception as e:
         raise HTTPException(500, str(e))
+
+# --- ASYNC JOB SYSTEM ---
+def _run_excel_job(job_id, agent_filter):
+    """Background worker for Excel generation"""
+    try:
+        jobs[job_id]["status"] = "processing"
+        jobs[job_id]["progress"] = 10
+        jobs[job_id]["message"] = "Connecting to OpenSearch..."
+
+        result = generate_inventory_excel(agent_filter, progress_callback=lambda p, m: _update_job(job_id, p, m))
+
+        jobs[job_id]["status"] = "completed"
+        jobs[job_id]["progress"] = 100
+        jobs[job_id]["message"] = "Ready for download"
+        jobs[job_id]["result"] = {"filename": result["filename"], "filepath": result["filepath"], "size": result["size"]}
+    except Exception as e:
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = str(e)
+        jobs[job_id]["message"] = f"Error: {str(e)}"
+
+def _update_job(job_id, progress, message):
+    if job_id in jobs:
+        jobs[job_id]["progress"] = progress
+        jobs[job_id]["message"] = message
+
+@app.post("/api/generate/inventory/excel/async")
+def gen_inventory_excel_async(agent: Optional[str] = None):
+    """Async Excel export with progress tracking"""
+    job_id = str(uuid.uuid4())[:8]
+    jobs[job_id] = {"status": "queued", "progress": 0, "message": "Starting...", "result": None, "error": None}
+    t = threading.Thread(target=_run_excel_job, args=(job_id, agent), daemon=True)
+    t.start()
+    return {"job_id": job_id, "status": "queued"}
+
+@app.get("/api/jobs/{job_id}")
+def get_job_status(job_id: str):
+    """Get async job status and progress"""
+    if job_id not in jobs:
+        raise HTTPException(404, "Job not found")
+    job = jobs[job_id]
+    resp = {"job_id": job_id, "status": job["status"], "progress": job["progress"], "message": job["message"]}
+    if job["status"] == "completed" and job["result"]:
+        resp["download_url"] = f"/api/jobs/{job_id}/download"
+        resp["filename"] = job["result"]["filename"]
+        resp["size"] = job["result"]["size"]
+    if job["error"]:
+        resp["error"] = job["error"]
+    return resp
+
+@app.get("/api/jobs/{job_id}/download")
+def download_job_result(job_id: str):
+    """Download completed job file"""
+    if job_id not in jobs:
+        raise HTTPException(404, "Job not found")
+    job = jobs[job_id]
+    if job["status"] != "completed" or not job["result"]:
+        raise HTTPException(400, "Job not ready")
+    return FileResponse(job["result"]["filepath"],
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=job["result"]["filename"])
 
 @app.get("/api/agents")
 def list_agents():

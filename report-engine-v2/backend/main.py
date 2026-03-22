@@ -310,6 +310,16 @@ async def gen_report(tid: str, period: Optional[str] = "24h"):
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
 
 # --- PDF PREVIEW (renders HTML in browser, no PDF download) ---
+def _center_preview(html):
+    """Wrap report HTML with centering styles for browser preview"""
+    return html.replace(
+        '<body>',
+        '<body style="background:#e5e7eb;display:flex;flex-direction:column;align-items:center;padding:20px 0">'
+    ).replace(
+        '.page{page-break-after:always;width:210mm;min-height:297mm;',
+        '.page{page-break-after:always;width:210mm;min-height:297mm;margin:0 auto 20px;box-shadow:0 4px 20px rgba(0,0,0,0.15);'
+    )
+
 @app.get("/api/preview/quick")
 async def preview_quick(period: Optional[str] = "24h"):
     from fastapi.responses import HTMLResponse
@@ -319,7 +329,7 @@ async def preview_quick(period: Optional[str] = "24h"):
         client = opensearch_client.get_client()
         raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
         data = pdf_generator.process_data(raw, period=period)
-        html = pdf_generator.render_html(data)
+        html = _center_preview(pdf_generator.render_html(data))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
@@ -330,7 +340,7 @@ async def preview_inventory():
     try:
         from inventory_report import collect_inventory_data, render_inventory_html
         data = collect_inventory_data()
-        html = render_inventory_html(data)
+        html = _center_preview(render_inventory_html(data))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
@@ -348,7 +358,7 @@ async def preview_report(tid: str, period: Optional[str] = "24h"):
         raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
         data = pdf_generator.process_data(raw, template, period)
         sections = json.loads(template["sections"]) if isinstance(template["sections"], str) else template["sections"]
-        html = pdf_generator.render_html(data, sections)
+        html = _center_preview(pdf_generator.render_html(data, sections))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")

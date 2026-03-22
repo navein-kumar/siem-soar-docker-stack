@@ -712,29 +712,48 @@ def svg_radar(data, w=220, h=220, color='#2563eb'):
 
 # ── Simple table builder ─────────────────────────────────────────
 
-def _stbl_v2(items, key, hdr, chdr, color, font="8px"):
-    """Enhanced simple table with better styling."""
+def _stbl_v2(items, key, hdr, chdr, color,
+             font="8px", max_rows=0):
+    """Enhanced simple table with rounded corners.
+    max_rows=0 means show all, >0 truncates with '+X more'.
+    """
     if not items:
         return (
             '<div style="text-align:center;color:#94a3b8;'
             'font-size:9px;padding:20px">No data</div>'
         )
+    total = len(items)
+    display = items[:max_rows] if max_rows > 0 else items
     rows = ''
-    for i, item in enumerate(items):
+    for i, item in enumerate(display):
         bg = '#fff' if i % 2 == 0 else '#f8fafc'
         rows += (
             f'<tr style="background:{bg}">'
-            f'<td style="padding:5px 10px;border-bottom:1px solid #e2e8f0;'
+            f'<td style="padding:5px 10px;'
+            f'border-bottom:1px solid #e2e8f0;'
             f'font-size:{font}">{item[key]}</td>'
-            f'<td style="padding:5px 10px;border-bottom:1px solid #e2e8f0;'
-            f'text-align:right;font-weight:700;font-size:8px;'
-            f'color:{color}">{_fc(item["count"])}</td>'
+            f'<td style="padding:5px 10px;'
+            f'border-bottom:1px solid #e2e8f0;'
+            f'text-align:right;font-weight:700;'
+            f'font-size:8px;color:{color}">'
+            f'{_fc(item["count"])}</td>'
             f'</tr>'
         )
+    extra = ''
+    remaining = total - len(display)
+    if remaining > 0:
+        extra = (
+            f'<div style="text-align:center;font-size:7px;'
+            f'color:#94a3b8;padding:4px">'
+            f'+{remaining} more</div>'
+        )
     return (
+        f'<div class="rtable">'
         f'<table><thead><tr><th>{hdr}</th>'
-        f'<th style="text-align:right;padding-right:10px">{chdr}</th>'
+        f'<th style="text-align:right;padding-right:10px">'
+        f'{chdr}</th>'
         f'</tr></thead><tbody>{rows}</tbody></table>'
+        f'{extra}</div>'
     )
 
 
@@ -813,6 +832,12 @@ body {
     position: relative;
 }
 
+.rtable {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 4px;
+}
 table { width: 100%; border-collapse: collapse; font-size: 8px; }
 tr { page-break-inside: avoid; break-inside: avoid; }
 td { word-wrap: break-word; overflow-wrap: break-word; max-width: 300px; }
@@ -827,8 +852,9 @@ thead th {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-thead th:first-child { border-radius: 6px 0 0 0; }
-thead th:last-child { border-radius: 0 6px 0 0; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:last-child td:first-child { border-radius: 0 0 0 10px; }
+tbody tr:last-child td:last-child { border-radius: 0 0 10px 0; }
 
 .footer {
     position: absolute;
@@ -966,7 +992,7 @@ def render_html_v2(d, sections=None):
 
     # ── Compliance ───────────────────────────────────────────
     if has("compliance"):
-        pages.append(_render_compliance(d))
+        pages.extend(_render_compliance(d))
 
     # ── Security Events ──────────────────────────────────────
     if has("security_events"):
@@ -1278,7 +1304,54 @@ def _render_executive_summary(d, sc):
   {_footer("Executive Summary")}
 </div>'''
 
-    # Page 2: Timeline chart
+    # Heatmap (hourly activity)
+    heatmap_svg = ''
+    if is_daily and d["timeline"]:
+        heatmap_data = [
+            {"day": "Today", "hour": t["hour"], "count": t["count"]}
+            for t in d["timeline"]
+        ]
+        heatmap_svg = f'''
+  <div class="card">
+    <div class="stitle">
+      <span class="dot" style="background:#7c3aed"></span>
+      Alert Activity Heatmap
+    </div>
+    <div style="text-align:center">
+      {svg_heatmap(heatmap_data, 600, 80)}
+    </div>
+  </div>'''
+    elif not is_daily and d.get("daily_trend"):
+        # Build heatmap: rows=days, cols=severity levels
+        heatmap_data = []
+        for t in d.get("daily_trend", []):
+            day_label = t.get("day", "")[:10]
+            for sev_key, sev_label in [
+                ("critical", "Critical"), ("high", "High"),
+                ("medium", "Medium"), ("low", "Low")
+            ]:
+                val = t.get(sev_key, 0)
+                if val > 0:
+                    heatmap_data.append({
+                        "day": day_label,
+                        "hour": sev_label,
+                        "count": val
+                    })
+        n_days = len(d.get("daily_trend", []))
+        hm_h = max(60, n_days * 18 + 30)
+        if heatmap_data:
+            heatmap_svg = f'''
+  <div class="card">
+    <div class="stitle">
+      <span class="dot" style="background:#7c3aed"></span>
+      Daily Severity Heatmap
+    </div>
+    <div style="text-align:center">
+      {svg_heatmap(heatmap_data, 400, hm_h)}
+    </div>
+  </div>'''
+
+    # Page 2: Timeline chart + heatmap
     page2 = f'''<div class="page">
   <div class="hdr">
     <h2>Alert Trends</h2>
@@ -1289,6 +1362,8 @@ def _render_executive_summary(d, sc):
     <div class="stitle"><span class="dot"></span>{tl_label}</div>
     <div style="text-align:center">{tl_svg}</div>
   </div>
+
+  {heatmap_svg}
 
   {_footer("Alert Trends")}
 </div>'''
@@ -1325,8 +1400,10 @@ def _render_executive_summary(d, sc):
 def _render_top_threats(d):
     """Render top threats page."""
     if d["incident_count"] > 0 and d["incidents"]:
+        max_inc = 15
+        display_inc = d["incidents"][:max_inc]
         rows = ''
-        for i, inc in enumerate(d["incidents"]):
+        for i, inc in enumerate(display_inc):
             bg = '#fff' if i % 2 == 0 else '#f8fafc'
             lvl_color = '#BD271E' if inc["level"] >= 15 else '#E7664C'
             rows += (
@@ -1374,7 +1451,8 @@ def _render_top_threats(d):
     </tr></thead>
     <tbody>{rows}</tbody>
   </table>
-  </div>'''
+  </div>
+  {"" if len(d["incidents"]) <= max_inc else f'<div style="text-align:center;font-size:7px;color:#94a3b8;padding:4px">+{len(d["incidents"]) - max_inc} more</div>'}'''
     else:
         threats_html = '''
   <div style="text-align:center;padding:70px 20px">
@@ -1420,9 +1498,11 @@ def _render_agents_risk(d):
     # Stacked bar
     stacked = svg_stacked_bars(d["top_agents"][:12], 500, 180)
 
-    # Agent risk table
+    # Agent risk table (limit to 12 rows max)
+    max_ar = 12
+    display_ar = d["agent_risk"][:max_ar]
     ar_rows = ''
-    for i, a in enumerate(d["agent_risk"]):
+    for i, a in enumerate(display_ar):
         bg = '#fff' if i % 2 == 0 else '#f8fafc'
         rc = _rc(a["risk"])
         ar_rows += (
@@ -1514,7 +1594,7 @@ def _render_agents_risk(d):
       <span class="dot" style="background:#dc2626"></span>
       Agent Risk Scores
     </div>
-    <table><thead><tr>
+    <div class="rtable"><table><thead><tr>
       <th>Agent</th>
       <th style="text-align:center">Total</th>
       <th style="text-align:center;color:#fca5a5">Crit</th>
@@ -1523,7 +1603,7 @@ def _render_agents_risk(d):
       <th style="text-align:center">Score</th>
       <th style="text-align:center">Risk</th>
       <th>Action</th>
-    </tr></thead><tbody>{ar_rows}</tbody></table>
+    </tr></thead><tbody>{ar_rows}</tbody></table></div>
   </div>
 
   <div class="card">
@@ -1604,14 +1684,14 @@ def _render_authentication(d):
         <span class="dot" style="background:#ef4444"></span>
         Top Failed Login Users
       </div>
-      {_stbl_v2(d["auth_fail_users"], "user", "User", "Failures", "#ef4444")}
+      {_stbl_v2(d["auth_fail_users"], "user", "User", "Failures", "#ef4444", max_rows=8)}
     </div>
     <div class="card" style="flex:1">
       <div class="stitle">
         <span class="dot" style="background:#f97316"></span>
         Top Source IPs (Failed)
       </div>
-      {_stbl_v2(d["auth_fail_ips"], "ip", "IP Address", "Attempts", "#f97316")}
+      {_stbl_v2(d["auth_fail_ips"], "ip", "IP Address", "Attempts", "#f97316", max_rows=8)}
     </div>
   </div>
 
@@ -1620,7 +1700,7 @@ def _render_authentication(d):
       <span class="dot" style="background:#22c55e"></span>
       Successful Logon Users
     </div>
-    {_stbl_v2(d["auth_success_users"], "user", "User", "Logons", "#22c55e")}
+    {_stbl_v2(d["auth_success_users"], "user", "User", "Logons", "#22c55e", max_rows=8)}
   </div>
 
   <!-- Event tables -->
@@ -1630,14 +1710,14 @@ def _render_authentication(d):
         <span class="dot" style="background:#ef4444"></span>
         Top Failed Login Events
       </div>
-      {_stbl_v2(d["auth_fail_events"], "desc", "Rule Description", "Count", "#ef4444", font="7.5px")}
+      {_stbl_v2(d["auth_fail_events"], "desc", "Rule Description", "Count", "#ef4444", font="7.5px", max_rows=8)}
     </div>
     <div class="card" style="flex:1">
       <div class="stitle">
         <span class="dot" style="background:#22c55e"></span>
         Top Success Login Events
       </div>
-      {_stbl_v2(d["auth_success_events"], "desc", "Rule Description", "Count", "#22c55e", font="7.5px")}
+      {_stbl_v2(d["auth_success_events"], "desc", "Rule Description", "Count", "#22c55e", font="7.5px", max_rows=8)}
     </div>
   </div>
 
@@ -1654,9 +1734,11 @@ def _render_source_ips(d):
             'font-size:9px;padding:20px">No source IP data</div>'
         )
     else:
-        mx_ip = d["top_srcips"][0]["count"]
+        max_ips = 15
+        display_ips = d["top_srcips"][:max_ips]
+        mx_ip = display_ips[0]["count"]
         rows = ''
-        for i, ip in enumerate(d["top_srcips"]):
+        for i, ip in enumerate(display_ips):
             bg = '#fff' if i % 2 == 0 else '#f8fafc'
             is_priv = ip["ip"].startswith(("192.168.", "10.", "172.", "fe80"))
             if is_priv:
@@ -1695,12 +1777,13 @@ def _render_source_ips(d):
             )
 
         srcip_html = f'''
-  <table><thead><tr>
+  <div class="rtable"><table><thead><tr>
     <th style="width:30px">#</th>
     <th>IP Address</th>
     <th style="text-align:right;width:80px">Events</th>
     <th style="width:200px">Activity</th>
-  </tr></thead><tbody>{rows}</tbody></table>
+  </tr></thead><tbody>{rows}</tbody></table></div>
+  {"" if len(d["top_srcips"]) <= max_ips else f'<div style="text-align:center;font-size:7px;color:#94a3b8;padding:4px">+{len(d["top_srcips"]) - max_ips} more</div>'}
   <div style="margin-top:12px;display:flex;gap:16px;font-size:8px;color:#64748b">
     <div><span style="display:inline-block;width:10px;height:10px;
       background:#2563eb;border-radius:3px;vertical-align:middle;
@@ -1757,13 +1840,13 @@ def _render_vulnerability(d):
       <div class="stitle">
         <span class="dot" style="background:#ef4444"></span>Top CVEs
       </div>
-      {_stbl_v2(d["vuln_top_cve"], "cve", "CVE ID", "Count", "#ef4444")}
+      {_stbl_v2(d["vuln_top_cve"], "cve", "CVE ID", "Count", "#ef4444", max_rows=10)}
     </div>
     <div class="card" style="flex:1">
       <div class="stitle">
         <span class="dot" style="background:#2563eb"></span>Affected Agents
       </div>
-      {_stbl_v2(d["vuln_top_agent"], "agent", "Agent", "Vulns", "#2563eb")}
+      {_stbl_v2(d["vuln_top_agent"], "agent", "Agent", "Vulns", "#2563eb", max_rows=10)}
     </div>
   </div>
 
@@ -1771,7 +1854,7 @@ def _render_vulnerability(d):
     <div class="stitle">
       <span class="dot" style="background:#7c3aed"></span>Affected Packages
     </div>
-    {_stbl_v2(d["vuln_top_pkg"], "pkg", "Package", "Count", "#7c3aed")}
+    {_stbl_v2(d["vuln_top_pkg"], "pkg", "Package", "Count", "#7c3aed", max_rows=10)}
   </div>
 
   {_footer("Vulnerability")}
@@ -1839,13 +1922,13 @@ def _render_fim(d):
       <div class="stitle">
         <span class="dot" style="background:#2563eb"></span>Top Agents (FIM)
       </div>
-      {_stbl_v2(d["fim_agents"], "agent", "Agent", "Changes", "#2563eb")}
+      {_stbl_v2(d["fim_agents"], "agent", "Agent", "Changes", "#2563eb", max_rows=8)}
     </div>
     <div class="card" style="flex:1">
       <div class="stitle">
         <span class="dot" style="background:#f97316"></span>Top Modified Paths
       </div>
-      {_stbl_v2(d["fim_paths"], "path", "File Path", "Count", "#f97316", font="7px")}
+      {_stbl_v2(d["fim_paths"], "path", "File Path", "Count", "#f97316", font="7px", max_rows=8)}
     </div>
   </div>
 
@@ -1858,7 +1941,7 @@ def _render_mitre(d):
     """Render MITRE ATT&CK analysis page."""
     tech_items = [
         {"value": m["count"], "label": m["technique"], "color": PALETTE_V2[i % 24]}
-        for i, m in enumerate(d["mitre_techniques"])
+        for i, m in enumerate(d["mitre_techniques"][:15])
     ]
     tech_svg = (
         svg_hbars_v2(tech_items, 500)
@@ -1868,7 +1951,7 @@ def _render_mitre(d):
 
     tac_items = [
         {"value": m["count"], "label": m["tactic"], "color": PALETTE_V2[i % 24]}
-        for i, m in enumerate(d["mitre_tactics"])
+        for i, m in enumerate(d["mitre_tactics"][:12])
     ]
     tac_svg = svg_hbars_v2(tac_items, 500) if tac_items else ""
 
@@ -1923,29 +2006,38 @@ def _render_compliance(d):
             f'</div>'
         )
 
-    def fw_tbl(k, nm, cl, col="Control"):
+    def fw_tbl(k, nm, cl, col="Control", max_rows=10):
         ctrls = c.get(k, {}).get("controls", [])
         if not ctrls:
             return (
                 f'<div style="text-align:center;color:#94a3b8;'
                 f'font-size:9px;padding:12px">No {nm} data</div>'
             )
+        display = ctrls[:max_rows]
         rows = ''
-        for i, ct in enumerate(ctrls):
+        for i, ct in enumerate(display):
             bg = '#fff' if i % 2 == 0 else '#f8fafc'
             rows += (
                 f'<tr style="background:{bg}">'
-                f'<td style="padding:4px 8px;border-bottom:1px solid #e2e8f0;'
-                f'font-size:8px;font-family:monospace">{ct["control"]}</td>'
-                f'<td style="padding:4px 8px;border-bottom:1px solid #e2e8f0;'
-                f'text-align:right;font-weight:700;font-size:8px">'
+                f'<td style="padding:3px 8px;border-bottom:1px solid #e2e8f0;'
+                f'font-size:7.5px;font-family:monospace">{ct["control"]}</td>'
+                f'<td style="padding:3px 8px;border-bottom:1px solid #e2e8f0;'
+                f'text-align:right;font-weight:700;font-size:7.5px">'
                 f'{_fc(ct["count"])}</td>'
                 f'</tr>'
             )
+        extra = ''
+        if len(ctrls) > max_rows:
+            extra = (
+                f'<div style="text-align:center;font-size:7px;color:#94a3b8;'
+                f'padding:4px">+{len(ctrls) - max_rows} more</div>'
+            )
         return (
+            f'<div class="rtable">'
             f'<table><thead><tr><th>{col}</th>'
             f'<th style="text-align:right">Alerts</th>'
             f'</tr></thead><tbody>{rows}</tbody></table>'
+            f'</div>{extra}'
         )
 
     tsc_sec = ''
@@ -1959,7 +2051,8 @@ def _render_compliance(d):
     {fw_tbl("tsc", "TSC", "#e11d48", "Criteria")}
   </div>'''
 
-    return f'''<div class="page">
+    # Page 1: Stats + PCI + HIPAA
+    page1 = f'''<div class="page">
   <div class="hdr" style="background:linear-gradient(135deg,#e11d48,#881337)">
     <h2>Regulatory Compliance Mapping</h2>
     <p>Alerts mapped to compliance frameworks</p>
@@ -1984,6 +2077,16 @@ def _render_compliance(d):
     </div>
   </div>
 
+  {_footer("Compliance")}
+</div>'''
+
+    # Page 2: GDPR + NIST + TSC
+    page2 = f'''<div class="page">
+  <div class="hdr">
+    <h2>Compliance Frameworks (cont.)</h2>
+    <p>GDPR, NIST 800-53, and TSC mappings</p>
+  </div>
+
   <div style="display:flex;gap:10px;margin-bottom:10px">
     <div class="card" style="flex:1">
       <div class="stitle">
@@ -2000,8 +2103,10 @@ def _render_compliance(d):
   </div>
 
   {tsc_sec}
-  {_footer("Compliance")}
+  {_footer("Compliance (cont.)")}
 </div>'''
+
+    return [page1, page2]
 
 
 def _render_security_events(d):
@@ -2144,9 +2249,11 @@ def _render_widget_section_v2(widget_id, d):
                 f'</tr>'
             )
         table_html = (
+            f'<div class="rtable">'
             f'<table><thead><tr><th>{field}</th>'
             f'<th style="text-align:right">Count</th>'
             f'</tr></thead><tbody>{rows}</tbody></table>'
+            f'</div>'
         )
 
         total_events = _fc(result["hits"]["total"]["value"])

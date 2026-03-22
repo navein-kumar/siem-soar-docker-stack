@@ -9,6 +9,7 @@ import config, database, opensearch_client
 from pdf_generator import generate_report, generate_quick_report
 from pdf_generator_v2 import generate_report_v2, generate_quick_report_v2
 from inventory_report import generate_inventory_report
+from inventory_report_v2 import generate_inventory_report_v2, render_inventory_html_v2
 from inventory_excel import generate_inventory_excel
 from security_excel import export_security_events, export_auth_events, export_vulnerability
 from comparison import compare_periods
@@ -312,6 +313,13 @@ async def gen_quick_v2(period: Optional[str] = "24h"):
         raise HTTPException(500, err)
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
 
+@app.post("/api/generate/v2/inventory")
+async def gen_inventory_v2(tid: Optional[str] = None):
+    result, err = await generate_inventory_report_v2(tid)
+    if err:
+        raise HTTPException(500, err)
+    return {"download_url": f"/api/reports/{result['id']}/download", **result}
+
 @app.post("/api/generate/v2/{tid}")
 async def gen_report_v2(tid: str, period: Optional[str] = "24h"):
     result, err = await generate_report_v2(tid, period)
@@ -368,6 +376,17 @@ async def preview_inventory():
         from inventory_report import collect_inventory_data, render_inventory_html
         data = collect_inventory_data()
         html = _center_preview(render_inventory_html(data))
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
+
+@app.get("/api/preview/v2/inventory")
+async def preview_inventory_v2():
+    from fastapi.responses import HTMLResponse
+    try:
+        from inventory_report import collect_inventory_data
+        data = collect_inventory_data()
+        html = _center_preview_v2(render_inventory_html_v2(data))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")

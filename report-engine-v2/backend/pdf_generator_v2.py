@@ -1201,12 +1201,12 @@ def _render_executive_summary(d, sc):
         f'</div>'
     )
 
-    # Active agents count — use all unique agents, not just top N
+    # Active agents count — from inventory system index (all enrolled, not just active)
     try:
-        agent_r = opensearch_client.run_aggregation(
-            {"range": {"timestamp": {"gte": f"now-{d.get('period','24h')}"}}},
-            {"unique": {"cardinality": {"field": "agent.name"}}}
-        )
+        client = opensearch_client.get_client()
+        idx_prefix = config.OPENSEARCH_INDEX.split('-')[0]
+        agent_r = client.search(index=f"{idx_prefix}-states-inventory-system-*",
+            body={"size": 0, "aggs": {"unique": {"cardinality": {"field": "agent.name"}}}})
         agent_count = agent_r["aggregations"]["unique"]["value"]
     except:
         agent_count = len(d.get("top_agents", []))

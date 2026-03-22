@@ -466,6 +466,250 @@ def svg_stacked_bars(agents, w=500, h=180):
     return f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}">{svg}</svg>'
 
 
+# ── HEATMAP CHART ────────────────────────────────────────────────
+
+def svg_heatmap(data, w=500, h=180):
+    """Heatmap grid — rows=days, cols=hours. data=[{day,hour,count}]
+    Colors: low=#e2e8f0 → medium=#3b82f6 → high=#dc2626"""
+    if not data:
+        return '<div style="text-align:center;color:#94a3b8;padding:20px">No heatmap data</div>'
+    import math
+    days = sorted(set(d["day"] for d in data))
+    hours = sorted(set(d["hour"] for d in data))
+    if not days or not hours:
+        return '<div style="text-align:center;color:#94a3b8;padding:20px">No heatmap data</div>'
+    lookup = {(d["day"], d["hour"]): d["count"] for d in data}
+    mx = max(d["count"] for d in data) or 1
+    cell_w = min(int((w - 80) / max(len(hours), 1)), 20)
+    cell_h = min(int((h - 30) / max(len(days), 1)), 18)
+    pl = 75
+
+    svg = f'<svg width="{w}" height="{h}" style="font-family:Inter,sans-serif">'
+    # Column headers (hours)
+    for ci, hr in enumerate(hours):
+        x = pl + ci * (cell_w + 1) + cell_w / 2
+        svg += f'<text x="{x:.0f}" y="10" text-anchor="middle" font-size="6" fill="#64748b">{hr}</text>'
+    # Rows
+    for ri, day in enumerate(days):
+        y = 18 + ri * (cell_h + 1)
+        label = day if len(day) <= 10 else day[:10]
+        svg += f'<text x="{pl-4}" y="{y+cell_h/2+3:.0f}" text-anchor="end" font-size="7" fill="#475569">{label}</text>'
+        for ci, hr in enumerate(hours):
+            x = pl + ci * (cell_w + 1)
+            val = lookup.get((day, hr), 0)
+            ratio = min(val / mx, 1.0)
+            # Color interpolation: low=slate → medium=blue → high=red
+            if ratio < 0.5:
+                r2 = ratio * 2
+                r_c = int(226 + (59 - 226) * r2)
+                g_c = int(232 + (130 - 232) * r2)
+                b_c = int(240 + (246 - 240) * r2)
+            else:
+                r2 = (ratio - 0.5) * 2
+                r_c = int(59 + (220 - 59) * r2)
+                g_c = int(130 + (38 - 130) * r2)
+                b_c = int(246 + (38 - 246) * r2)
+            color = f'rgb({r_c},{g_c},{b_c})'
+            svg += f'<rect x="{x}" y="{y}" width="{cell_w}" height="{cell_h}" fill="{color}" rx="2"/>'
+            if val > 0 and cell_w >= 14:
+                fc = '#fff' if ratio > 0.4 else '#475569'
+                vt = f"{val//1000}k" if val >= 1000 else str(val)
+                svg += f'<text x="{x+cell_w/2:.0f}" y="{y+cell_h/2+3:.0f}" text-anchor="middle" font-size="5" fill="{fc}">{vt}</text>'
+    # Legend
+    ly = h - 12
+    svg += f'<text x="{pl}" y="{ly}" font-size="6" fill="#94a3b8">Low</text>'
+    for i in range(10):
+        ratio = i / 9
+        if ratio < 0.5:
+            r2 = ratio * 2
+            r_c = int(226 + (59 - 226) * r2)
+            g_c = int(232 + (130 - 232) * r2)
+            b_c = int(240 + (246 - 240) * r2)
+        else:
+            r2 = (ratio - 0.5) * 2
+            r_c = int(59 + (220 - 59) * r2)
+            g_c = int(130 + (38 - 130) * r2)
+            b_c = int(246 + (38 - 246) * r2)
+        svg += f'<rect x="{pl+25+i*12}" y="{ly-8}" width="10" height="8" fill="rgb({r_c},{g_c},{b_c})" rx="1"/>'
+    svg += f'<text x="{pl+25+120+4}" y="{ly}" font-size="6" fill="#94a3b8">High</text>'
+    svg += '</svg>'
+    return svg
+
+
+# ── GRADIENT AREA CHART ──────────────────────────────────────────
+
+def svg_area_chart(points, w=500, h=140, color='#2563eb', fill_opacity=0.15):
+    """Area chart with gradient fill under the line."""
+    if not points or len(points) < 2:
+        return '<div style="text-align:center;color:#94a3b8;padding:20px">No data</div>'
+    import math
+    pt, pb, pl, pr = 15, 30, 40, 10
+    cW = w - pl - pr
+    cH = h - pt - pb
+    mx = max(p["value"] for p in points) or 1
+    mn = 0
+    n = len(points)
+
+    svg = f'<svg width="{w}" height="{h}" style="font-family:Inter,sans-serif">'
+    # Gradient def
+    svg += f'<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="{color}" stop-opacity="{fill_opacity*3}"/><stop offset="100%" stop-color="{color}" stop-opacity="0.02"/></linearGradient></defs>'
+    # Grid
+    for i in range(5):
+        gy = pt + cH - (cH * i / 4)
+        gv = int(mn + (mx - mn) * i / 4)
+        gvs = f"{gv//1000000}M" if gv >= 1000000 else (f"{gv//1000}k" if gv >= 1000 else str(gv))
+        svg += f'<line x1="{pl}" y1="{gy:.1f}" x2="{w-pr}" y2="{gy:.1f}" stroke="#e2e8f0" stroke-width="0.5"/>'
+        svg += f'<text x="{pl-4}" y="{gy+3:.1f}" text-anchor="end" font-size="6" fill="#94a3b8">{gvs}</text>'
+    # Points
+    coords = []
+    for i, p in enumerate(points):
+        x = pl + (cW * i / (n - 1)) if n > 1 else pl + cW / 2
+        y = pt + cH - ((p["value"] - mn) / (mx - mn)) * cH if mx > mn else pt + cH / 2
+        coords.append((x, y))
+    # Area path
+    area_path = f'M{coords[0][0]:.1f},{pt+cH}'
+    for x, y in coords:
+        area_path += f' L{x:.1f},{y:.1f}'
+    area_path += f' L{coords[-1][0]:.1f},{pt+cH} Z'
+    svg += f'<path d="{area_path}" fill="url(#areaGrad)"/>'
+    # Line
+    line_path = f'M{coords[0][0]:.1f},{coords[0][1]:.1f}'
+    for x, y in coords[1:]:
+        line_path += f' L{x:.1f},{y:.1f}'
+    svg += f'<path d="{line_path}" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+    # Dots + labels
+    for i, (x, y) in enumerate(coords):
+        svg += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{color}" stroke="#fff" stroke-width="1.5"/>'
+        label = points[i].get("label", "")
+        if i % max(1, n // 8) == 0 or i == n - 1:
+            svg += f'<text x="{x:.1f}" y="{pt+cH+14}" text-anchor="middle" font-size="6" fill="#94a3b8">{label}</text>'
+    svg += '</svg>'
+    return svg
+
+
+# ── TREEMAP CHART ────────────────────────────────────────────────
+
+def svg_treemap(items, w=500, h=200):
+    """Treemap — grid layout with severity colors. Uses squarified layout."""
+    if not items:
+        return '<div style="text-align:center;color:#94a3b8;padding:20px">No data</div>'
+    import math
+
+    def _get_color(label):
+        if 'L15' in label or 'L14' in label or 'L13' in label:
+            return '#BD271E'
+        elif 'L12' in label or 'L11' in label or 'L10' in label:
+            return '#E7664C'
+        elif 'L9' in label or 'L8' in label or 'L7' in label:
+            return '#D6BF57'
+        return '#6DCCB1'
+
+    sorted_items = sorted(items, key=lambda x: -x["value"])[:12]
+    n = len(sorted_items)
+    if n == 0:
+        return '<div style="text-align:center;color:#94a3b8;padding:20px">No data</div>'
+
+    # Simple grid: calculate cols/rows to fill space
+    legend_h = 20
+    usable_h = h - legend_h - 4
+    usable_w = w - 4
+    cols = min(n, 4) if n <= 8 else min(n, 5)
+    rows_needed = math.ceil(n / cols)
+    cell_w = (usable_w - (cols - 1) * 3) / cols
+    cell_h = (usable_h - (rows_needed - 1) * 3) / rows_needed
+
+    svg = f'<svg width="{w}" height="{h}" style="font-family:Inter,sans-serif">'
+
+    for idx, item in enumerate(sorted_items):
+        col = idx % cols
+        row = idx // cols
+        x = 2 + col * (cell_w + 3)
+        y = 2 + row * (cell_h + 3)
+        color = _get_color(item.get("label", ""))
+
+        svg += f'<rect x="{x:.0f}" y="{y:.0f}" width="{cell_w:.0f}" height="{cell_h:.0f}" fill="{color}" rx="5" opacity="0.9"/>'
+
+        label = item.get("label", "")
+        if len(label) > int(cell_w / 5):
+            label = label[:int(cell_w / 5)] + ".."
+        vt = f"{item['value']//1000000:.1f}M" if item["value"] >= 1000000 else (f"{item['value']//1000}k" if item["value"] >= 1000 else str(item["value"]))
+
+        if cell_w > 40 and cell_h > 20:
+            svg += f'<text x="{x+cell_w/2:.0f}" y="{y+cell_h/2-3:.0f}" text-anchor="middle" font-size="7" fill="#fff" font-weight="600">{label}</text>'
+            svg += f'<text x="{x+cell_w/2:.0f}" y="{y+cell_h/2+9:.0f}" text-anchor="middle" font-size="6" fill="rgba(255,255,255,0.8)">{vt}</text>'
+
+    # Legend
+    ly = h - 8
+    lx = 10
+    for sev, col in [("Critical", "#BD271E"), ("High", "#E7664C"), ("Medium", "#D6BF57")]:
+        svg += f'<rect x="{lx}" y="{ly-6}" width="8" height="8" fill="{col}" rx="2"/>'
+        svg += f'<text x="{lx+11}" y="{ly+1}" font-size="6" fill="#475569">{sev}</text>'
+        lx += 55
+
+    svg += '</svg>'
+    return svg
+
+
+# ── RADAR CHART ──────────────────────────────────────────────────
+
+def svg_radar(data, w=220, h=220, color='#2563eb'):
+    """Radar/spider chart — data=[{label, value}], values normalized to max."""
+    if not data or len(data) < 3:
+        return '<div style="text-align:center;color:#94a3b8;padding:20px">Need 3+ data points</div>'
+    import math
+    cx, cy = w / 2, h / 2
+    r = min(w, h) / 2 - 25
+    n = len(data)
+    mx = max(d["value"] for d in data) or 1
+
+    svg = f'<svg width="{w}" height="{h}" style="font-family:Inter,sans-serif">'
+    # Grid rings
+    for ring in [0.25, 0.5, 0.75, 1.0]:
+        pts = []
+        for i in range(n):
+            angle = (2 * math.pi * i / n) - math.pi / 2
+            px = cx + r * ring * math.cos(angle)
+            py = cy + r * ring * math.sin(angle)
+            pts.append(f'{px:.1f},{py:.1f}')
+        svg += f'<polygon points="{" ".join(pts)}" fill="none" stroke="#e2e8f0" stroke-width="0.5"/>'
+    # Axis lines
+    for i in range(n):
+        angle = (2 * math.pi * i / n) - math.pi / 2
+        px = cx + r * math.cos(angle)
+        py = cy + r * math.sin(angle)
+        svg += f'<line x1="{cx}" y1="{cy}" x2="{px:.1f}" y2="{py:.1f}" stroke="#e2e8f0" stroke-width="0.5"/>'
+    # Data polygon
+    pts = []
+    for i, d in enumerate(data):
+        ratio = d["value"] / mx
+        angle = (2 * math.pi * i / n) - math.pi / 2
+        px = cx + r * ratio * math.cos(angle)
+        py = cy + r * ratio * math.sin(angle)
+        pts.append(f'{px:.1f},{py:.1f}')
+    svg += f'<polygon points="{" ".join(pts)}" fill="{color}" fill-opacity="0.2" stroke="{color}" stroke-width="2"/>'
+    # Data dots + labels
+    for i, d in enumerate(data):
+        ratio = d["value"] / mx
+        angle = (2 * math.pi * i / n) - math.pi / 2
+        px = cx + r * ratio * math.cos(angle)
+        py = cy + r * ratio * math.sin(angle)
+        svg += f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3" fill="{color}" stroke="#fff" stroke-width="1.5"/>'
+        # Label
+        lx = cx + (r + 14) * math.cos(angle)
+        ly = cy + (r + 14) * math.sin(angle)
+        anchor = "middle"
+        if math.cos(angle) > 0.3:
+            anchor = "start"
+        elif math.cos(angle) < -0.3:
+            anchor = "end"
+        label = d.get("label", "")
+        if len(label) > 12:
+            label = label[:12] + ".."
+        svg += f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" font-size="7" fill="#475569">{label}</text>'
+    svg += '</svg>'
+    return svg
+
+
 # ── Simple table builder ─────────────────────────────────────────
 
 def _stbl_v2(items, key, hdr, chdr, color, font="8px"):
@@ -891,32 +1135,35 @@ def _render_executive_summary(d, sc):
             f'</div></div>'
         )
 
-    # Timeline chart
+    # Timeline chart — use area chart for v2
     if is_daily:
-        tl_items = [
-            {"value": t["count"], "label": t["hour"], "color": "#2563eb"}
-            for t in d["timeline"]
-        ]
-        tl_svg = svg_vbars_v2(tl_items, 500, 150) if tl_items else (
-            '<div style="text-align:center;color:#94a3b8;padding:20px">'
-            'No timeline data</div>'
-        )
+        tl_points = [{"value": t["count"], "label": t["hour"]} for t in d["timeline"]]
+        tl_svg = svg_area_chart(tl_points, 500, 150, color='#2563eb') if tl_points else '<div style="text-align:center;color:#94a3b8;padding:20px">No timeline data</div>'
         tl_label = "Alerts Timeline (24h)"
+        # Also build heatmap data for hourly view
+        heatmap_data = [{"day": "Today", "hour": t["hour"], "count": t["count"]} for t in d["timeline"]]
     else:
         trend = d.get("daily_trend", [])
         if trend:
             chart_w = 680 if d.get("period") == "30d" else 500
-            tl_items = [
-                {"value": t["total"], "label": t["day"], "color": "#2563eb"}
-                for t in trend
-            ]
-            tl_svg = svg_vbars_v2(tl_items, chart_w, 160)
+            tl_points = [{"value": t["total"], "label": t["day"]} for t in trend]
+            tl_svg = svg_area_chart(tl_points, chart_w, 160, color='#2563eb')
         else:
-            tl_svg = (
-                '<div style="text-align:center;color:#94a3b8;padding:20px">'
-                'No timeline data</div>'
-            )
+            tl_svg = '<div style="text-align:center;color:#94a3b8;padding:20px">No timeline data</div>'
         tl_label = "Daily Alert Trend"
+        heatmap_data = []
+
+    # Treemap for top rules — only Medium/High/Critical (skip Low level 0-6)
+    sorted_for_treemap = sorted(
+        [r for r in d.get("top_rules", []) if r.get("level", 0) >= 7],
+        key=lambda x: (-x.get("level", 0), -x.get("count", 0))
+    )
+    treemap_items = [{"value": r["count"], "label": f'L{r.get("level",0)} {r.get("description", r.get("rule_id", ""))[:18]}'} for r in sorted_for_treemap[:15]]
+    treemap_svg = svg_treemap(treemap_items, 500, 200) if treemap_items else '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:9px">No Medium/High/Critical rules in this period</div>'
+
+    # Radar for agent risk profile
+    radar_items = [{"value": a.get("score", 0), "label": a["name"][:12]} for a in d.get("agent_risk", [])[:8]]
+    radar_svg = svg_radar(radar_items, 240, 240, '#7c3aed') if len(radar_items) >= 3 else ""
 
     # Period comparison
     ps = d["prev_severity"]
@@ -954,14 +1201,16 @@ def _render_executive_summary(d, sc):
         f'</div>'
     )
 
-    # Risk gauge
-    total = d["total_alerts"] or 1
-    risk_score = min(100, round(
-        (sc["Critical"] / total) * 400
-        + (sc["High"] / total) * 200
-        + (sc["Medium"] / total) * 30
-    ))
-    gauge = svg_gauge(risk_score, 100, 160, 100, "Overall Risk")
+    # Active agents count — use all unique agents, not just top N
+    try:
+        agent_r = opensearch_client.run_aggregation(
+            {"range": {"timestamp": {"gte": f"now-{d.get('period','24h')}"}}},
+            {"unique": {"cardinality": {"field": "agent.name"}}}
+        )
+        agent_count = agent_r["aggregations"]["unique"]["value"]
+    except:
+        agent_count = len(d.get("top_agents", []))
+    gauge = f'<div style="text-align:center;padding:12px"><div style="font-size:42px;font-weight:800;color:#2563eb">{agent_count}</div><div style="font-size:10px;color:#64748b;margin-top:4px">Active Agents</div></div>'
 
     # Executive text
     ta0 = d["top_agents"][0] if d["top_agents"] else {"name": "N/A", "count": 0}
@@ -1044,7 +1293,33 @@ def _render_executive_summary(d, sc):
   {_footer("Alert Trends")}
 </div>'''
 
-    return [page1, page2]
+    # Page 3: Additional charts (treemap + radar) — stacked vertically
+    extra_charts = []
+    if treemap_svg or radar_svg:
+        treemap_section = f'''<div class="card">
+    <div class="stitle"><span class="dot" style="background:#0d9488"></span>Alert Rule Distribution</div>
+    <p style="font-size:8px;color:#94a3b8;margin:-6px 0 10px 16px">Top rules sized by event count, sorted by severity level (highest first)</p>
+    <div style="text-align:center">{treemap_svg}</div>
+  </div>''' if treemap_svg else ''
+
+        radar_section = f'''<div class="card">
+    <div class="stitle"><span class="dot" style="background:#7c3aed"></span>Agent Risk Profile</div>
+    <p style="font-size:8px;color:#94a3b8;margin:-6px 0 10px 16px">Risk score distribution across monitored agents (0-100 scale)</p>
+    <div style="text-align:center">{radar_svg}</div>
+  </div>''' if radar_svg else ''
+
+        page3 = f'''<div class="page">
+  <div class="hdr">
+    <h2>{_icon("chart","#fff")} Advanced Analytics</h2>
+    <p>{pla} advanced visualizations</p>
+  </div>
+  {treemap_section}
+  {radar_section}
+  {_footer("Analytics")}
+</div>'''
+        extra_charts.append(page3)
+
+    return [page1, page2] + extra_charts
 
 
 def _render_top_threats(d):
@@ -1088,16 +1363,18 @@ def _render_top_threats(d):
       Events with severity level 12+ may indicate active threats or critical changes.
     </div>
   </div>
+  <div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">
   <table>
     <thead><tr>
-      <th style="width:40px">Level</th>
+      <th style="width:40px;border-radius:8px 0 0 0">Level</th>
       <th>Description</th>
       <th style="width:55px;text-align:center">Count</th>
       <th style="width:120px">Affected Agents</th>
-      <th style="width:100px">Last Seen (IST)</th>
+      <th style="width:100px;border-radius:0 8px 0 0">Last Seen (IST)</th>
     </tr></thead>
     <tbody>{rows}</tbody>
-  </table>'''
+  </table>
+  </div>'''
     else:
         threats_html = '''
   <div style="text-align:center;padding:70px 20px">

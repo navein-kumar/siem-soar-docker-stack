@@ -7,6 +7,7 @@ from typing import Optional, List, Any
 import json, os
 import config, database, opensearch_client
 from pdf_generator import generate_report, generate_quick_report
+from inventory_report import generate_inventory_report
 
 app = FastAPI(title="Codesec Report Engine", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -185,6 +186,13 @@ def delete_report(rid: str):
 @app.post("/api/generate/quick")
 async def gen_quick(period: Optional[str] = "24h"):
     result, err = await generate_quick_report(period)
+    if err:
+        raise HTTPException(500, err)
+    return {"download_url": f"/api/reports/{result['id']}/download", **result}
+
+@app.post("/api/generate/inventory")
+async def gen_inventory(tid: Optional[str] = None):
+    result, err = await generate_inventory_report(tid)
     if err:
         raise HTTPException(500, err)
     return {"download_url": f"/api/reports/{result['id']}/download", **result}

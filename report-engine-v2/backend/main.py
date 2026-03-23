@@ -479,10 +479,12 @@ async def preview_quick_v2(period: Optional[str] = "24h"):
     try:
         import pdf_generator_v2
         from pdf_generator import build_query, process_data
+        templates = database.get_templates()
+        tcfg = templates[0] if templates else None
         query = build_query(period)
         client = opensearch_client.get_client()
         raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
-        data = process_data(raw, period=period)
+        data = process_data(raw, template_cfg=tcfg, period=period)
         html = _center_preview_v2(pdf_generator_v2.render_html_v2(data))
         return HTMLResponse(content=html)
     except Exception as e:

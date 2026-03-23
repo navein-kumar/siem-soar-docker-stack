@@ -927,11 +927,13 @@ def _stat_card(label, value, color, icon_name=None, gradient=False):
 
 # ── Page footer ──────────────────────────────────────────────────
 
+_footer_company = "Codesecure Solutions"
+
 def _footer(section_label=''):
-    """Render page footer."""
+    """Render page footer with dynamic company name."""
     return (
         f'<div class="footer">'
-        f'<span>Codesecure Solutions | Confidential</span>'
+        f'<span>{_footer_company} | Confidential</span>'
         f'<span>{section_label}</span>'
         f'</div>'
     )
@@ -941,6 +943,9 @@ def _footer(section_label=''):
 
 def render_html_v2(d, sections=None):
     """Render enhanced HTML report with v2 styling."""
+    global _footer_company
+    _footer_company = d.get("client_name", "Codesecure Solutions")
+
     ALL = [
         "executive_summary", "top_threats", "agents_risk",
         "authentication", "source_ips", "vulnerability",
@@ -2330,10 +2335,13 @@ async def generate_report_v2(template_id, period="24h"):
 async def generate_quick_report_v2(period="24h"):
     """Generate a v2-styled quick PDF report with all sections."""
     try:
+        # Use first template's company info for quick report
+        templates = database.get_templates()
+        tcfg = templates[0] if templates else None
         query = build_query(period)
         client = opensearch_client.get_client()
         raw = client.search(index=config.OPENSEARCH_INDEX, body=query)
-        data = process_data(raw, period=period)
+        data = process_data(raw, template_cfg=tcfg, period=period)
 
         html = render_html_v2(data)
         pdf_bytes, err = await _html_to_pdf(html)

@@ -7,6 +7,7 @@ from datetime import datetime
 
 from inventory_report import collect_inventory_data, _query
 from pdf_generator import _fc, _html_to_pdf, IST
+import pdf_generator_v2
 from pdf_generator_v2 import (
     CSS_V2, PALETTE_V2, _icon, _footer, _stat_card,
     svg_donut_v2, svg_hbars_v2, svg_vbars_v2, svg_gauge,
@@ -661,6 +662,10 @@ def _render_vulnerability_posture(d):
 
 def render_inventory_html_v2(d, template_cfg=None):
     """Render v2 inventory HTML report."""
+    # Set footer company from template config
+    if template_cfg:
+        cn = template_cfg.get("description", "Codesecure Solutions")
+        pdf_generator_v2._footer_company = cn
     pages = []
     pages.append(_render_cover_inv(d, template_cfg))
     pages.append(_render_asset_overview(d))

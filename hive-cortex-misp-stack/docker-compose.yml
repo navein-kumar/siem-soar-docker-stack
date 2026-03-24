@@ -50,6 +50,20 @@ services:
     volumes:
       - ./data/minio:/data
 
+  # ── MinIO bucket init (creates 'thehive' bucket on first start) ──
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/thehive --ignore-existing;
+      echo 'Bucket thehive created';
+      "
+
   # ── TheHive 5 ──
   thehive:
     image: strangebee/thehive:5.2

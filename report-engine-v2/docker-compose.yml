@@ -10,7 +10,7 @@
 ##
 ## UI Login:   admin / SecretPassword@123  (configurable via UI_USER/UI_PASS)
 ## API Access:  No auth required (for N8N, curl, external tools)
-## URL:         http://your-server:8447
+## URL:         https://your-server:8447
 
 services:
   backend:
@@ -49,7 +49,6 @@ services:
       - SSL_ENABLED=true
     volumes:
       - ssl-certs:/etc/nginx/ssl
-      - ./frontend/entrypoint.sh:/entrypoint.sh:ro
     depends_on:
       - backend
     restart: unless-stopped

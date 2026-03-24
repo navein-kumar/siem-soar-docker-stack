@@ -1,17 +1,20 @@
-## Report Engine v2 - Production (Docker Hub images)
-## Usage:
+## Report Engine v2.1 - Production (Docker Hub images)
+##
+## Quick Start:
 ##   docker-compose pull && docker-compose up -d
 ##
-## First-time setup:
+## First-time setup — update company details:
 ##   curl -X PUT "http://localhost:8447/api/templates/bulk/company" \
 ##     -H "Content-Type: application/json" \
 ##     -d '{"description":"Your Company","client_address":"City, Country","logo_url":"https://..."}'
 ##
-## Access: http://your-server:8447
+## UI Login:   admin / SecretPassword@123  (configurable via UI_USER/UI_PASS)
+## API Access:  No auth required (for N8N, curl, external tools)
+## URL:         http://your-server:8447
 
 services:
   backend:
-    image: navinkr431/report-engine-backend:v2.0
+    image: navinkr431/report-engine-backend:v2.1
     container_name: report-engine-api
     volumes:
       - ./data:/app/data
@@ -22,6 +25,8 @@ services:
       - OPENSEARCH_PASS=your-password
       - OPENSEARCH_INDEX=wazuh-alerts-*
       - GOTENBERG_URL=http://gotenberg:3000
+      - EXCEL_MAX_ROWS=200000
+      - REQUEST_TIMEOUT=600
       - CLEANUP_SCHEDULE=weekly
     depends_on:
       - gotenberg
@@ -33,10 +38,12 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: navinkr431/report-engine-frontend:v2.0
+    image: navinkr431/report-engine-frontend:v2.1
     container_name: report-engine-web
     ports:
       - "8447:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     restart: unless-stopped

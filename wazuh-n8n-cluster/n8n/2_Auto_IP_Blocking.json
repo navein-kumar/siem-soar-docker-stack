@@ -1,0 +1,525 @@
+{
+  "name": "2_Auto_IP_Blocking",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://172.17.0.1:55000/security/user/authenticate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        -112
+      ],
+      "id": "a2f7e3b0-a7c2-42ea-a246-f319181bb0d0",
+      "name": "login",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "ocJvc0t5xykLhuO4",
+          "name": "wazuh_api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1LGBDiF7HV3BIVAUEPum2YzstjfmXFD8z1pCP8U55FS4",
+          "mode": "list",
+          "cachedResultName": "Wazuh Threat Alert Report - Winsar",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LGBDiF7HV3BIVAUEPum2YzstjfmXFD8z1pCP8U55FS4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1654756400,
+          "mode": "list",
+          "cachedResultName": "BlockedIP_1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LGBDiF7HV3BIVAUEPum2YzstjfmXFD8z1pCP8U55FS4/edit#gid=1654756400"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "={{ $json.message }}",
+            "Timestamp": "={{ DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "row_number": "={{ $('Get row in sheet').item.json.row_number }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Blocked_IP",
+              "displayName": "Blocked_IP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Agent_ID",
+              "displayName": "Agent_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        752,
+        160
+      ],
+      "id": "43cab3cb-447a-4a8c-a31d-4aa6a56b8861",
+      "name": "Update Status",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vK9CyWVIq0i5AsiK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "185835d7-bbda-41ab-9a96-d37a46f3e7b7",
+              "leftValue": "={{ $json.Agent_ID }}",
+              "rightValue": "all",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "032ce1d2-6565-41b1-ba8e-3b5cdcb51aa3",
+              "leftValue": "={{ $json.Agent_ID }}",
+              "rightValue": "\\d\\d\\d",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        -96
+      ],
+      "id": "5f8e9d49-6a7e-4a27-9fd4-18695d3f16fc",
+      "name": "If",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://172.17.0.1:55000/security/user/authenticate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        176,
+        144
+      ],
+      "id": "9d24294b-26fb-4bac-9ff3-d2d47c1a37cb",
+      "name": "login2",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "ocJvc0t5xykLhuO4",
+          "name": "wazuh_api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://172.17.0.1:55000/active-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('login').item.json.data.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"command\": \"netsh8640000\",\n  \"alert\": {\n    \"data\": {\n      \"srcip\": \"{{ $('Get row in sheet').item.json.Blocked_IP }}\"\n    }\n  }\n}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        -96
+      ],
+      "id": "40ce7b4b-789d-454d-9c2e-1581a6757658",
+      "name": "Block_All_Agent",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://172.17.0.1:55000/active-response?agents_list={{ $('Get row in sheet1').item.json.Agent_ID }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.data.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"command\": \"netsh8640000\",\n  \"alert\": {\n    \"data\": {\n      \"srcip\": \"{{ $('Google Sheets Trigger').item.json.Blocked_IP }}\"\n    }\n  }\n}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        144
+      ],
+      "id": "b6c61dab-2b2a-400f-b156-1161a8fd6e16",
+      "name": "Block_1_Agent",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -192,
+        -96
+      ],
+      "id": "602c3418-2874-424e-ba44-7fbf5c35a510",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -608,
+        -96
+      ],
+      "id": "fc85c7e2-b693-4e92-ac4b-566462d9e660",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1LGBDiF7HV3BIVAUEPum2YzstjfmXFD8z1pCP8U55FS4",
+          "mode": "list",
+          "cachedResultName": "Wazuh Threat Alert Report - Winsar",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LGBDiF7HV3BIVAUEPum2YzstjfmXFD8z1pCP8U55FS4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1654756400,
+          "mode": "list",
+          "cachedResultName": "BlockedIP_1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LGBDiF7HV3BIVAUEPum2YzstjfmXFD8z1pCP8U55FS4/edit#gid=1654756400"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "block"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -432,
+        -96
+      ],
+      "id": "af1ef990-67bb-47fa-8f92-10e80c88fb27",
+      "name": "Get row in sheet",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vK9CyWVIq0i5AsiK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## For Permant Block 100 days "
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        -288
+      ],
+      "id": "45370eb1-5594-4695-9f94-60acb87f7991",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        976,
+        240
+      ],
+      "id": "40599396-cace-43ed-ab16-e72eb06792e8",
+      "name": "Wait",
+      "webhookId": "fb142bce-cca0-480a-8e26-05b796ae7f74"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://172.17.0.1:55000/active-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('login').item.json.data.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"command\": \"netsh30\",\n  \"alert\": {\n    \"data\": {\n      \"srcip\": \"{{ $('Get row in sheet').item.json.Blocked_IP }}\"\n    }\n  }\n}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        576,
+        -352
+      ],
+      "id": "5c0573d1-9727-4e5c-bc4e-5a40fd1c2347",
+      "name": "Block_All_Agent1",
+      "retryOnFail": true,
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "login": {
+      "main": [
+        [
+          {
+            "node": "Block_All_Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "login",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "login2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "login2": {
+      "main": [
+        [
+          {
+            "node": "Block_1_Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Block_All_Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Block_1_Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "d063aab1-e03d-4dd7-8480-10d842525992",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "75f4fc027711f48fd0000f8bb37b644e62b77085e3e4ded32482028843dc21ca"
+  },
+  "id": "Azh0NIJ1DAzllKAG",
+  "tags": []
+}

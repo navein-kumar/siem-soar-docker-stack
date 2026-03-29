@@ -452,23 +452,25 @@ async def preview_quick(period: Optional[str] = "24h"):
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
 
 @app.get("/api/preview/inventory")
-async def preview_inventory():
+async def preview_inventory(tid: Optional[str] = None):
     from fastapi.responses import HTMLResponse
     try:
         from inventory_report import collect_inventory_data, render_inventory_html
+        template_cfg = database.get_template(tid) if tid else None
         data = collect_inventory_data()
-        html = _center_preview(render_inventory_html(data))
+        html = _center_preview(render_inventory_html(data, template_cfg))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")
 
 @app.get("/api/preview/v2/inventory")
-async def preview_inventory_v2():
+async def preview_inventory_v2(tid: Optional[str] = None):
     from fastapi.responses import HTMLResponse
     try:
         from inventory_report import collect_inventory_data
+        template_cfg = database.get_template(tid) if tid else None
         data = collect_inventory_data()
-        html = _center_preview_v2(render_inventory_html_v2(data))
+        html = _center_preview_v2(render_inventory_html_v2(data, template_cfg))
         return HTMLResponse(content=html)
     except Exception as e:
         return HTMLResponse(content=f"<html><body><h2>Preview Error</h2><pre>{str(e)}</pre></body></html>")

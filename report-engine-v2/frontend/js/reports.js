@@ -102,8 +102,13 @@ async function generateQuickReport() {
       }).catch(e => toast('❌ '+e.message,'red'));
     } else if (tpl === 'inventory') {
       const invUrl = style === 'v2' ? '/generate/v2/inventory' : '/generate/inventory';
+      const invTpl = templates.find(t => t.name && t.name.toLowerCase().includes('inventory'));
+      const params = new URLSearchParams();
+      if (agent) params.set('agent', agent);
+      if (invTpl) params.set('tid', invTpl.id);
+      const qStr = params.toString();
       toast('📄 Inventory report generation started...','blue');
-      fetch(API+invUrl+'?'+agentParam.substring(1), {method:'POST'}).then(r=>r.json()).then(r => {
+      fetch(API+invUrl+(qStr ? '?'+qStr : ''), {method:'POST'}).then(r=>r.json()).then(r => {
         if (r.download_url) { toast('✅ Inventory report ready!','green'); loadReports(); }
         else { toast('❌ '+(r.detail||'Failed'),'red'); }
       }).catch(e => toast('❌ '+e.message,'red'));
@@ -287,7 +292,7 @@ async function previewTemplate(useV2) {
     const isInventory = document.getElementById('tpl-name')?.value?.toLowerCase().includes('inventory');
     const prefix = useV2 ? '/preview/v2' : '/preview';
     const url = isInventory
-      ? API+prefix+'/inventory'
+      ? API+prefix+'/inventory?tid='+editingTemplate
       : API+prefix+'/'+editingTemplate+'?period='+period;
     window.open(url, '_blank');
     toast('Preview opened in new tab','green');

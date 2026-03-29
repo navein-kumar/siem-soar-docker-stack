@@ -175,7 +175,7 @@ services:
       - wazuh.master:wazuh.master
 
   nginx:
-    image: nginx:stable
+    image: nginx:alpine
     hostname: nginx
     restart: always
     ports:

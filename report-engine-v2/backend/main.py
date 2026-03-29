@@ -546,3 +546,26 @@ def health():
         return {"status": "ok", "opensearch": info["version"]["number"], "cluster": info["cluster_name"]}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/api/hive/health")
+async def hive_health():
+    if not config.THEHIVE_URL or not config.THEHIVE_API_KEY:
+        return {"status": "not_configured"}
+    try:
+        import aiohttp, ssl
+        ssl_ctx = ssl.create_default_context(); ssl_ctx.check_hostname = False; ssl_ctx.verify_mode = ssl.CERT_NONE
+        headers = {"Authorization": f"Bearer {config.THEHIVE_API_KEY}", "Content-Type": "application/json"}
+        async with aiohttp.ClientSession() as session:
+            # Count alerts
+            async with session.post(f"{config.THEHIVE_URL}/api/v1/query",
+                headers=headers, json={"query": [{"_name": "listAlert"}]}, ssl=ssl_ctx) as r:
+                alerts = await r.json()
+                alert_count = len(alerts) if isinstance(alerts, list) else 0
+            # Count cases
+            async with session.post(f"{config.THEHIVE_URL}/api/v1/query",
+                headers=headers, json={"query": [{"_name": "listCase"}]}, ssl=ssl_ctx) as r:
+                cases = await r.json()
+                case_count = len(cases) if isinstance(cases, list) else 0
+        return {"status": "ok", "alerts": alert_count, "cases": case_count}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

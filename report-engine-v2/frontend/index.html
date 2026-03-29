@@ -27,7 +27,13 @@
     <button onclick="showTab('compare')" id="tab-compare" class="px-4 py-2 text-sm">Compare</button>
     <button onclick="showTab('reports')" id="tab-reports" class="px-4 py-2 text-sm">Reports</button>
   </div>
-  <div id="health-badge" class="text-xs px-3 py-1 rounded-full bg-gray-100">Connecting...</div>
+  <div class="flex items-center gap-2">
+    <div id="health-badge" class="text-xs px-3 py-1 rounded-full bg-gray-100">Connecting...</div>
+    <div id="hive-badge" title="TheHive connection status" class="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-gray-100 cursor-default">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <span id="hive-badge-text">Hive</span>
+    </div>
+  </div>
 </nav>
 
 <!-- DASHBOARD TAB -->
@@ -182,7 +188,7 @@
 <!-- TEMPLATES TAB -->
 <div id="page-templates" class="p-6 hidden">
   <div class="flex justify-between items-center mb-4">
-    <h2 class="text-xl font-bold text-gray-800">Report Templates</h2>
+    <h2 class="text-xl font-bold text-gray-800">Security Reports</h2>
     <button onclick="createTemplate()" class="btn btn-primary">+ New Template</button>
   </div>
   <div id="templates-list" class="grid grid-cols-3 gap-4"></div>

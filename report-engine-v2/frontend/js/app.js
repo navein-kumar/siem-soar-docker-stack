@@ -62,10 +62,28 @@ async function init() {
   try {
     const h = await fetch(API+'/health').then(r=>r.json());
     document.getElementById('health-badge').className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700';
-    document.getElementById('health-badge').textContent = 'Connected: ' + h.cluster;
+    document.getElementById('health-badge').textContent = 'Wazuh: ' + (h.cluster || 'connected');
   } catch(e) {
     document.getElementById('health-badge').className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-700';
-    document.getElementById('health-badge').textContent = 'Disconnected';
+    document.getElementById('health-badge').textContent = 'Wazuh: offline';
+  }
+
+  // TheHive status badge
+  try {
+    const hive = await fetch(API+'/hive/health').then(r=>r.json());
+    const hb = document.getElementById('hive-badge');
+    const ht = document.getElementById('hive-badge-text');
+    if (hive.status === 'ok') {
+      hb.className = 'flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 cursor-default';
+      ht.textContent = 'Hive: ' + (hive.alerts + 'A / ' + hive.cases + 'C');
+      hb.title = 'TheHive connected — ' + hive.alerts + ' alerts, ' + hive.cases + ' cases';
+    } else {
+      hb.className = 'flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-400 cursor-default';
+      ht.textContent = 'Hive: offline';
+    }
+  } catch(e) {
+    const hb = document.getElementById('hive-badge');
+    if (hb) { hb.className = 'flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-400 cursor-default'; document.getElementById('hive-badge-text').textContent = 'Hive: N/A'; }
   }
 
   // Load fields

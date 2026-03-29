@@ -15,3 +15,8 @@ DB_PATH = os.getenv("DB_PATH", "/app/data/report_engine.db")
 
 # Auto-cleanup: "daily", "weekly", "off" (default: off)
 CLEANUP_SCHEDULE = os.getenv("CLEANUP_SCHEDULE", "off")
+
+# TheHive integration
+THEHIVE_URL = os.getenv("THEHIVE_URL", "")
+THEHIVE_API_KEY = os.getenv("THEHIVE_API_KEY", "")
+THEHIVE_ORG = os.getenv("THEHIVE_ORG", "")

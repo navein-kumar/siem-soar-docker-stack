@@ -10,11 +10,35 @@ async function loadTemplates() {
     c.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-12">No templates yet. Click "+ New Template" to create one.</div>';
     return;
   }
-  c.innerHTML = r.templates.sort((a,b) => {
+  const incidentCard = `
+    <div class="card p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="w-6 h-6 rounded" style="background:#1B2A4A"></div>
+        <h3 class="font-semibold text-gray-800">5. Incident Management Report</h3>
+      </div>
+      <p class="text-xs text-gray-500 mb-3">TheHive-based incident report: alerts, cases, IOCs, MITRE, MTTR &amp; analyst activity</p>
+      <div class="text-xs text-gray-400 mb-3">TheHive data</div>
+      <div class="flex gap-2 items-center mb-2">
+        <select id="incident-period" class="text-xs" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;flex:1">
+          <option value="24h">Last 24 Hours</option>
+          <option value="7d" selected>Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="generateIncidentReport(document.getElementById('incident-period').value)" class="btn btn-primary flex-1 text-xs">Generate</button>
+        <button onclick="generateIncidentExcel(document.getElementById('incident-period').value)" class="btn text-xs" style="background:#217346;color:#fff;flex:1">Excel</button>
+      </div>
+    </div>`;
+
+  const sorted = r.templates.sort((a,b) => {
     const na = parseInt(a.name.match(/^(\d+)/)?.[1] || '999');
     const nb = parseInt(b.name.match(/^(\d+)/)?.[1] || '999');
     return na - nb || a.name.localeCompare(b.name);
-  }).map(t => `
+  });
+
+  // Insert incident card after template #4 (before #6)
+  const cards = sorted.map(t => `
     <div class="card p-4">
       <div class="flex items-center gap-2 mb-2">
         <div class="w-6 h-6 rounded" style="background:${t.cover_color}"></div>
@@ -33,11 +57,41 @@ async function loadTemplates() {
       <div class="flex gap-2">
         <button onclick="editTemplate('${t.id}')" class="btn btn-outline flex-1 text-xs">Edit</button>
         <button onclick="${t.name.toLowerCase().includes('inventory') ? "generateInventoryPDF()" : "generateFromTemplate('"+t.id+"',document.getElementById('period-"+t.id+"').value)"}" class="btn btn-primary flex-1 text-xs">Generate</button>
-        <button onclick="${t.name.toLowerCase().includes('inventory') ? "showExcelDialog()" : "showExcelExportDialog()"}" class="btn text-xs" style="background:#217346;color:#fff;flex:1">📊 Excel</button>
-        ${/^\d+\./.test(t.name) ? '' : '<button onclick="deleteTemplate(\''+t.id+'\')" class="btn btn-danger text-xs">✕</button>'}
+        <button onclick="${t.name.toLowerCase().includes('inventory') ? "showExcelDialog()" : "showExcelExportDialog()"}" class="btn text-xs" style="background:#217346;color:#fff;flex:1">Excel</button>
+        ${/^\d+\./.test(t.name) ? '' : '<button onclick="deleteTemplate(\''+t.id+'\')" class="btn btn-danger text-xs">X</button>'}
       </div>
     </div>
-  `).join('');
+  `);
+
+  // Find index after template 4 to insert incident card at position 5
+  const insertAt = sorted.findIndex(t => parseInt(t.name.match(/^(\d+)/)?.[1]||0) >= 5);
+  if (insertAt === -1) cards.push(incidentCard);
+  else cards.splice(insertAt, 0, incidentCard);
+
+  c.innerHTML = cards.join('');
+}
+
+function generateIncidentReport(period) {
+  const p = period || '7d';
+  toast('Incident Management Report generation started (TheHive data)...','blue');
+  fetch(API+'/generate/incident?period='+p, {method:'POST'}).then(r=>r.json()).then(r => {
+    if (r.download_url) { toast('Incident report ready!','green'); loadReports(); showTab('reports'); }
+    else { toast('❌ '+(r.detail||r.error||'Failed'),'red'); }
+  }).catch(e => toast('❌ '+e.message,'red'));
+}
+
+function generateIncidentExcel(period) {
+  const p = period || '7d';
+  toast('Incident Excel export started (TheHive data)...','blue');
+  fetch(API+'/generate/incident/excel?period='+p, {method:'POST'})
+    .then(r => { if(r.ok) return r.blob(); throw new Error('Failed'); })
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'incident_report_'+new Date().toISOString().slice(0,10)+'.xlsx';
+      a.click(); URL.revokeObjectURL(url);
+      toast('Incident Excel downloaded!','green');
+    }).catch(e => toast('❌ '+e.message,'red'));
 }
 
 async function createTemplate() {

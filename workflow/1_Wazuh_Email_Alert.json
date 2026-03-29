@@ -176,16 +176,15 @@
         "alertFields": {
           "mappingMode": "defineBelow",
           "value": {
-            "title": "=[{{ $json.severity_label }}] {{ $json.alert_title }}",
+            "title": "=Wazuh_Alert |  {{ $json.alert_title }}",
             "source": "={{ $json.source }}",
             "type": "={{ $json.event_type }}",
-            "description": "=Wazuh Alert | {{ $json.alert_title }} | Agent: {{ $json.agent.name }} ({{ $json.agent.ip }}) | Rule: {{ $json.rule_id }} | Level: {{ $json.rule_level }}",
-            "sourceRef": "=wazuh_{{ $json.rule_id }}_{{ $json.agent.name }}_{{ DateTime.now().toFormat('yyyyMMdd_HHmmss') }}",
-            "severity": "={{ $json.rule_level >= 15 ? 4 : $json.rule_level >= 12 ? 3 : $json.rule_level >= 7 ? 2 : 1 }}",
-            "summary": "=🔴 Wazuh Alert Summary\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Rule ID     : {{ $json.rule_id }}\n📋 Rule Desc   : {{ $json.all_fields.rule.description }}\n🌐 Rule Group  : {{ $json.all_fields.rule.groups }}\n⚠️ Severity    : Level {{ $json.rule_level }} - {{ $json.severity_label }}\n🖥️ Agent       : {{ $json.agent.name }} - {{ $json.agent.ip }}\n🕐 Timestamp   : {{ $json.timestamp }}\n🎯 MITRE       : {{ $json.all_fields.rule.mitre?.technique }}\n📍 Location    : {{ $json.location }}\n📁 Full Log    : {{ $json.alert_text }}\n",
-            "flag": "={{ $json.rule_level >= 12 }}",
-            "tags": "={{ ($json.all_fields.rule.groups || []).concat($json.all_fields.rule.mitre?.technique || []) }}",
-            "tlp": "={{ $json.rule_level >= 12 ? 3 : 2 }}",
+            "description": "=Wazuh Alert | {{ $json.alert_title }} | Agent: {{ $json.agent.name }} | Rule: {{ $json.rule_id }}",
+            "sourceRef": "={{ $json.source }}_{{ DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "summary": "=🔴 Wazuh Alert Summary\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Rule ID     : {{ $json.rule_id }}\n📋 Rule Desc   : {{ $json.all_fields.rule.description }}\n🌐 Rule Group  : {{ $json.all_fields.rule.groups }}\n⚠️ Severity    : {{ $json.rule_level }} - {{ $json.severity_label }}\n🖥️ Agent       : {{ $json.agent.name }} -  {{ $json.agent.ip }}\n🕐 Timestamp   : {{ $json.timestamp }}\n🎯 MITRE       : {{ $json.all_fields.rule.mitre.technique }}\n📁 Full Log    : Pls refer below full log summary\n\n{{ JSON.stringify($json) }}\n",
+            "flag": false,
+            "tags": "={{ $json.all_fields.rule.groups }}",
+            "tlp": 2,
             "pap": 2
           },
           "matchingColumns": [],
@@ -266,7 +265,7 @@
                   "value": 4
                 }
               ],
-              "removed": false,
+              "removed": true,
               "required": false,
               "display": true,
               "defaultMatch": false
@@ -433,22 +432,8 @@
         "observableUi": {
           "values": [
             {
-              "dataType": "hostname",
-              "data": "={{ $json.agent.name }}",
-              "message": "Affected agent/endpoint",
-              "tags": ["wazuh-agent"]
-            },
-            {
               "dataType": "ip",
-              "data": "={{ $json.all_fields.data.srcip || $json.all_fields.data[\"win.eventdata.ipAddress\"] || \"\" }}",
-              "message": "Source IP from Wazuh alert",
-              "tags": ["source-ip"]
-            },
-            {
-              "dataType": "ip",
-              "data": "={{ $json.agent.ip || \"\" }}",
-              "message": "Agent IP address",
-              "tags": ["agent-ip"]
+              "data": "={{ $json.all_fields.data.srcip || $json.all_fields.data[\"win.eventdata.ipAddress\"] || $json.agent.ip || \"No IP Available\" }}"
             }
           ]
         }

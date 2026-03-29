@@ -86,24 +86,37 @@ def generate_msg(alert, options):
 
     level = alert.get('rule', {}).get('level', 1)
 
-    severity = 1 if level <= 4 else 2 if level <= 7 else 3
+    # Severity: matches TheHive 1-4 scale
+    # Low=1 (1-6), Medium=2 (7-11), High=3 (12-14), Critical=4 (15)
+    severity = 4 if level >= 15 else 3 if level >= 12 else 2 if level >= 7 else 1
+
+    data = alert.get('data', {})
+    rule = alert.get('rule', {})
+    agent = alert.get('agent', {})
 
     msg = {
         'source': 'wazuh',
         'event_type': 'security_alert',
         'severity': severity,
         'severity_label': get_severity_label(severity),
-        'alert_title': alert.get('rule', {}).get('description', 'N/A'),
+        'alert_title': rule.get('description', 'N/A'),
         'alert_text': alert.get('full_log', 'N/A'),
-        'rule_id': alert.get('rule', {}).get('id', 'N/A'),
+        'rule_id': rule.get('id', 'N/A'),
         'rule_level': level,
+        'rule_groups': rule.get('groups', []),
+        'mitre_technique': rule.get('mitre', {}).get('technique', []),
+        'mitre_tactic': rule.get('mitre', {}).get('tactic', []),
         'timestamp': alert.get('timestamp'),
         'alert_id': alert.get('id'),
         'agent': {
-            'id': alert.get('agent', {}).get('id', 'N/A'),
-            'name': alert.get('agent', {}).get('name', 'N/A'),
-            'ip': alert.get('agent', {}).get('ip', 'N/A')
+            'id': agent.get('id', 'N/A'),
+            'name': agent.get('name', 'N/A'),
+            'ip': agent.get('ip', 'N/A')
         },
+        'src_ip': data.get('srcip') or data.get('win.eventdata.ipAddress', ''),
+        'dst_ip': data.get('dstip', ''),
+        'src_user': data.get('srcuser') or data.get('win.eventdata.targetUserName', ''),
+        'src_port': data.get('srcport', ''),
         'location': alert.get('location', 'N/A'),
         'decoder': alert.get('decoder', {}).get('name', 'N/A'),
         'all_fields': alert
@@ -129,7 +142,7 @@ def send_msg(msg, url):
         log(f'# ERROR sending request: {e}')
 
 def get_severity_label(severity):
-    return {1: 'Low', 2: 'Medium', 3: 'High'}.get(severity, 'Unknown')
+    return {1: 'Low', 2: 'Medium', 3: 'High', 4: 'Critical'}.get(severity, 'Unknown')
 
 def log(msg):
     with open(LOG_FILE, 'a') as f:

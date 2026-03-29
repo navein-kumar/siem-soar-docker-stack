@@ -3,24 +3,8 @@
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "21219720-0300-4e29-8408-ea4b3a759e96",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        -624,
-        32
-      ],
-      "id": "3891776a-3f1a-48f6-b4e0-49a7b470f27f",
-      "name": "Webhook",
-      "webhookId": "21219720-0300-4e29-8408-ea4b3a759e96"
-    },
-    {
-      "parameters": {
-        "fromEmail": "siem-alerts@yourdomain.com",
-        "toEmail": "soc-team@yourdomain.com",
+        "fromEmail": "siemalertmail@gmail.com",
+        "toEmail": "naveen@codesecure.in,bmdoke@pansegroup.com",
         "subject": "Wazuh SIEM Alert ",
         "html": "={{ $json.html }}",
         "options": {
@@ -30,15 +14,15 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        960,
-        -256
+        416,
+        64
       ],
-      "id": "346ea03e-a861-43ef-baf9-a6d947fc7ff7",
+      "id": "e8a1db82-44fc-4f57-8557-539d063ed391",
       "name": "Send email",
       "webhookId": "80fbb052-8acf-4fce-bbd6-d248dc9f36c1",
       "credentials": {
         "smtp": {
-          "id": "L6nAJz9JmYsc227N",
+          "id": "VYmd2c4wAGDOcnZM",
           "name": "SMTP account"
         }
       }
@@ -52,15 +36,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        -576,
+        208
       ],
-      "id": "c00c0fc7-dd82-4160-8edb-03b85c2e7aa9",
+      "id": "1b2cb495-8136-48ef-8481-43414b5fb535",
       "name": "Redis",
       "alwaysOutputData": false,
       "credentials": {
         "redis": {
-          "id": "McPevHm089tSNrpr",
+          "id": "e6OLOQ2dqQptV417",
           "name": "Redis account"
         }
       },
@@ -94,10 +78,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        208,
-        -96
+        -336,
+        208
       ],
-      "id": "a178392c-56fb-4b06-ade5-e0c05b75034e",
+      "id": "96f13682-88a2-4239-a950-10629c73e3ff",
       "name": "If1"
     },
     {
@@ -110,14 +94,14 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        448,
-        -176
+        -112,
+        208
       ],
-      "id": "cfae945c-c944-4e9d-ac70-b8c0ac1fa5a6",
+      "id": "fe72929a-5857-41d6-abb3-903d85cfbf00",
       "name": "Redis1",
       "credentials": {
         "redis": {
-          "id": "McPevHm089tSNrpr",
+          "id": "e6OLOQ2dqQptV417",
           "name": "Redis account"
         }
       }
@@ -129,10 +113,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -400,
-        32
+        -944,
+        240
       ],
-      "id": "ee5445af-0530-4cef-802a-75971ffccda8",
+      "id": "e710b258-0a3f-497b-b265-38d247a8a2db",
       "name": "field_map"
     },
     {
@@ -153,10 +137,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -176,
-        16
+        -752,
+        224
       ],
-      "id": "f6109ebd-81b4-4976-b697-aead014069b5",
+      "id": "964d9a21-d010-4630-b5ae-25af4bd5cd0f",
       "name": "set_field"
     },
     {
@@ -166,10 +150,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        752,
-        -240
+        224,
+        64
       ],
-      "id": "a676e364-b8ca-4077-b56b-ff853624eb39",
+      "id": "06e2491c-7609-4b8c-93b2-ce6dbeabb91f",
       "name": "table"
     },
     {
@@ -181,10 +165,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        608,
-        0
+        64,
+        192
       ],
-      "id": "4e6023c4-ae8d-433c-9a96-649361e12580",
+      "id": "00cd0047-b077-4548-9598-c528c8ad0a49",
       "name": "Edit Fields"
     },
     {
@@ -192,12 +176,17 @@
         "alertFields": {
           "mappingMode": "defineBelow",
           "value": {
-            "title": "=Wazuh_Alert |  {{ $json.alert_title }}",
+            "title": "=[{{ $json.severity_label }}] {{ $json.alert_title }}",
             "source": "={{ $json.source }}",
             "type": "={{ $json.event_type }}",
-            "description": "=Wazuh Alert| {{ $json.alert_title }}",
-            "sourceRef": "={{ $json.source }}_{{ DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss') }}",
-            "summary": "=Here full log summary for review\n{{ JSON.stringify($json) }}"
+            "description": "=Wazuh Alert | {{ $json.alert_title }} | Agent: {{ $json.agent.name }} ({{ $json.agent.ip }}) | Rule: {{ $json.rule_id }} | Level: {{ $json.rule_level }}",
+            "sourceRef": "=wazuh_{{ $json.rule_id }}_{{ $json.agent.name }}_{{ DateTime.now().toFormat('yyyyMMdd_HHmmss') }}",
+            "severity": "={{ $json.rule_level >= 15 ? 4 : $json.rule_level >= 12 ? 3 : $json.rule_level >= 7 ? 2 : 1 }}",
+            "summary": "=🔴 Wazuh Alert Summary\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Rule ID     : {{ $json.rule_id }}\n📋 Rule Desc   : {{ $json.all_fields.rule.description }}\n🌐 Rule Group  : {{ $json.all_fields.rule.groups }}\n⚠️ Severity    : Level {{ $json.rule_level }} - {{ $json.severity_label }}\n🖥️ Agent       : {{ $json.agent.name }} - {{ $json.agent.ip }}\n🕐 Timestamp   : {{ $json.timestamp }}\n🎯 MITRE       : {{ $json.all_fields.rule.mitre?.technique }}\n📍 Location    : {{ $json.location }}\n📁 Full Log    : {{ $json.alert_text }}\n",
+            "flag": "={{ $json.rule_level >= 12 }}",
+            "tags": "={{ ($json.all_fields.rule.groups || []).concat($json.all_fields.rule.mitre?.technique || []) }}",
+            "tlp": "={{ $json.rule_level >= 12 ? 3 : 2 }}",
+            "pap": 2
           },
           "matchingColumns": [],
           "schema": [
@@ -277,7 +266,7 @@
                   "value": 4
                 }
               ],
-              "removed": true,
+              "removed": false,
               "required": false,
               "display": true,
               "defaultMatch": false
@@ -295,7 +284,7 @@
               "displayName": "Tags",
               "id": "tags",
               "type": "string",
-              "removed": true,
+              "removed": false,
               "required": false,
               "display": true,
               "defaultMatch": false
@@ -313,7 +302,7 @@
               "displayName": "Flag",
               "id": "flag",
               "type": "boolean",
-              "removed": true,
+              "removed": false,
               "required": false,
               "display": true,
               "defaultMatch": false
@@ -340,7 +329,7 @@
                   "value": 3
                 }
               ],
-              "removed": true,
+              "removed": false,
               "required": false,
               "display": true,
               "defaultMatch": false
@@ -367,7 +356,7 @@
                   "value": 3
                 }
               ],
-              "removed": true,
+              "removed": false,
               "required": false,
               "display": true,
               "defaultMatch": false
@@ -440,37 +429,64 @@
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
+        },
+        "observableUi": {
+          "values": [
+            {
+              "dataType": "hostname",
+              "data": "={{ $json.agent.name }}",
+              "message": "Affected agent/endpoint",
+              "tags": ["wazuh-agent"]
+            },
+            {
+              "dataType": "ip",
+              "data": "={{ $json.all_fields.data.srcip || $json.all_fields.data[\"win.eventdata.ipAddress\"] || \"\" }}",
+              "message": "Source IP from Wazuh alert",
+              "tags": ["source-ip"]
+            },
+            {
+              "dataType": "ip",
+              "data": "={{ $json.agent.ip || \"\" }}",
+              "message": "Agent IP address",
+              "tags": ["agent-ip"]
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.theHiveProject",
       "typeVersion": 1,
       "position": [
-        928,
-        80
+        304,
+        336
       ],
-      "id": "4d5046de-3f40-4907-b26b-0741e3e49dc0",
+      "id": "c626f02a-050a-4af0-ac07-265dda3e70f9",
       "name": "Create an alert",
       "credentials": {
         "theHiveProjectApi": {
-          "id": "WjOHbSyYZFfiOqIQ",
+          "id": "lNFzPeokhx3NP1Nv",
           "name": "The Hive 5 account"
         }
       }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "21219720-0300-4e29-8408-ea4b3a759e96",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1152,
+        208
+      ],
+      "id": "e4157a25-420a-467e-bdc9-4e922cd79f9c",
+      "name": "Webhook1",
+      "webhookId": "21219720-0300-4e29-8408-ea4b3a759e96"
     }
   ],
   "pinData": {},
   "connections": {
-    "Webhook": {
-      "main": [
-        [
-          {
-            "node": "field_map",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Redis": {
       "main": [
         [
@@ -552,19 +568,33 @@
           }
         ]
       ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "field_map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "e9c3b8e6-e967-4c03-a8fd-3c060c3ca88c",
+  "versionId": "598d44b0-565e-4626-972b-a7cc642fe918",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "e9b6a04864197a44bbfa1c46c237bf63bfce5d647f5b02d30e41f3e11f7a1938"
+    "instanceId": "c2ebe46a2fd80a296ac436b1f9c29895040c59d2e88780d264236c2a31a741e6"
   },
-  "id": "1h3Sh4IHXJNAytMh",
+  "id": "ECGFFAjpacc40sHT",
   "tags": []
 }

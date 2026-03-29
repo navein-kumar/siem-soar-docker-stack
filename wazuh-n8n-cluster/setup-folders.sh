@@ -33,6 +33,10 @@ mkdir -p "$DATA_DIR/dashboard/config" "$DATA_DIR/dashboard/custom"
 # N8N + Redis data dirs
 mkdir -p "$DATA_DIR/n8n" "$DATA_DIR/redis"
 
+# Wazuh manager runs as uid 101 (wazuh user)
+chown -R 101:101 "$DATA_DIR/master"
+chown -R 101:101 "$DATA_DIR/worker"
+
 # Indexer runs as uid 1000 (wazuh-indexer user)
 chown -R 1000:1000 "$DATA_DIR/indexer1"
 

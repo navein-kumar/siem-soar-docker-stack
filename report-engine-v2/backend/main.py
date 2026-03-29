@@ -409,6 +409,54 @@ async def gen_report_v2(tid: str, period: Optional[str] = "24h"):
         raise HTTPException(400, err)
     return {"download_url": f"/api/reports/{result['id']}/download", **result}
 
+
+@app.post("/api/generate/incident/excel")
+async def generate_incident_excel_route(period: Optional[str] = "7d"):
+    try:
+        from incident_excel import generate_incident_excel
+        from fastapi.responses import Response
+        from datetime import datetime
+        excel_bytes = await generate_incident_excel(period)
+        period_tag = {"24h": "daily", "7d": "weekly", "30d": "monthly"}.get(period, period)
+        fname = f"incident_{period_tag}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return Response(content=excel_bytes,
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": "attachment; filename=" + fname})
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "detail": traceback.format_exc()}
+
+@app.post("/api/generate/incident")
+async def generate_incident(period: Optional[str] = "7d"):
+    try:
+        from incident_report import generate_incident_report
+        from datetime import datetime, timedelta
+        pdf_bytes = await generate_incident_report(period)
+        now = datetime.now()
+        period_tag = {"24h": "daily", "7d": "weekly", "30d": "monthly"}.get(period, period)
+        fname = f"incident_{period_tag}_{now.strftime('%Y%m%d_%H%M')}.pdf"
+        fpath = os.path.join(config.REPORTS_DIR, fname)
+        with open(fpath, "wb") as f:
+            f.write(pdf_bytes)
+        _period_h = {"24h": 24, "7d": 168, "30d": 720, "90d": 2160}
+        period_from = (now - timedelta(hours=_period_h.get(period, 168))).strftime("%Y-%m-%d %H:%M")
+        period_to = now.strftime("%Y-%m-%d %H:%M")
+        rid = database.save_report("incident", fname, period_from, period_to, len(pdf_bytes))
+        return {"download_url": f"/api/reports/{rid}/download", "id": rid, "filename": fname}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/api/preview/incident")
+async def preview_incident(period: Optional[str] = "7d"):
+    try:
+        from incident_report import preview_incident_report
+        from fastapi.responses import HTMLResponse
+        html = await preview_incident_report(period)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "detail": traceback.format_exc()}
+
 @app.post("/api/generate/{tid}")
 async def gen_report(tid: str, period: Optional[str] = "24h"):
     result, err = await generate_report(tid, period)
@@ -569,3 +617,6 @@ async def hive_health():
         return {"status": "ok", "alerts": alert_count, "cases": case_count}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+# ── Incident Management Report (TheHive) ─────────────────────────────────────

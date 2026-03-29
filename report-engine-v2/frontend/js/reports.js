@@ -6,10 +6,10 @@
 async function generateFromTemplate(tid, periodOverride) {
   const periodEl = document.getElementById('tpl-period');
   const p = periodOverride || (periodEl ? periodEl.value : '24h') || '24h';
-  toast('📄 Report generation started in background. Check Reports tab when ready.','blue');
+  toast('Report generation started in background. Check Reports tab when ready.','blue');
   fetch(API+'/generate/'+tid+'?period='+p, {method:'POST'}).then(r=>r.json()).then(r => {
     if (r.download_url) {
-      toast('✅ Report ready! ' + ((r.size/1024).toFixed(0)) + 'KB — click Reports tab to download','green');
+      toast('Report ready! ' + ((r.size/1024).toFixed(0)) + 'KB — click Reports tab to download','green');
       loadReports();
     } else {
       toast('❌ ' + (r.detail || 'Generation failed'),'red');
@@ -33,19 +33,35 @@ async function generateQuickReport() {
     agents = aR.agents || [];
   } catch(e) {}
 
-  const tplOpts = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  // Build ordered options: Quick → sorted DB templates with inventory at #4 and incident at #5
+  const nonInv = templates.filter(t => !t.name.toLowerCase().includes('inventory'));
+  const orderedOpts = ['<option value="quick">Quick Report (All Sections)</option>'];
+  let _injInv = false, _injInc = false;
+  for (const t of nonInv) {
+    const num = parseInt(t.name.match(/^(\d+)/)?.[1] || '999');
+    if (!_injInv && num >= 4) {
+      orderedOpts.push('<option value="inventory">4. IT Asset Inventory</option>');
+      _injInv = true;
+    }
+    if (!_injInc && num >= 6) {
+      orderedOpts.push('<option value="incident">5. Incident Management Report (TheHive)</option>');
+      _injInc = true;
+    }
+    orderedOpts.push(`<option value="${t.id}">${t.name}</option>`);
+  }
+  if (!_injInv) orderedOpts.push('<option value="inventory">4. IT Asset Inventory</option>');
+  if (!_injInc) orderedOpts.push('<option value="incident">5. Incident Management Report (TheHive)</option>');
+  const tplOpts = orderedOpts.join('');
   const agentOpts = agents.map(a => `<option value="${a}">${a}</option>`).join('');
 
   const overlay = document.createElement('div');
   overlay.id = 'gen-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:460px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
-    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">📄 Generate PDF Report</h3>
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">Generate Report</h3>
     <div style="margin-bottom:12px">
       <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Report Template</label>
       <select id="gen-template" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
-        <option value="quick">Quick Report (All Sections)</option>
-        <option value="inventory">IT Asset Inventory</option>
         ${tplOpts}
       </select>
     </div>
@@ -71,6 +87,13 @@ async function generateQuickReport() {
         <option value="classic">Classic (v1)</option>
       </select>
     </div>
+    <div style="margin-bottom:12px;display:none" id="gen-fmt-row">
+      <label style="font-size:12px;color:#69707D;display:block;margin-bottom:4px">Export Format</label>
+      <select id="gen-fmt" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+        <option value="pdf">PDF Report</option>
+        <option value="excel">Excel Workbook (8 sheets)</option>
+      </select>
+    </div>
     <div style="margin-bottom:16px;font-size:11px;color:#95a5a6">Generates a PDF report with cover page, charts, and data tables. Runs in background.</div>
     <div style="display:flex;gap:8px">
       <button id="gen-go-btn" class="btn btn-primary" style="flex:1">Generate PDF</button>
@@ -79,9 +102,18 @@ async function generateQuickReport() {
   </div>`;
   document.body.appendChild(overlay);
 
-  document.getElementById('gen-template').onchange = function() {
-    document.getElementById('gen-period-row').style.display = this.value === 'inventory' ? 'none' : 'block';
-  };
+  function _updateGenDialog(val) {
+    const isIncident = val === 'incident';
+    const isInv = val === 'inventory';
+    document.getElementById('gen-period-row').style.display = isInv ? 'none' : 'block';
+    document.getElementById('gen-agent').parentElement.style.display = isIncident ? 'none' : 'block';
+    document.getElementById('gen-style').parentElement.style.display = isIncident ? 'none' : 'block';
+    document.getElementById('gen-fmt-row').style.display = isIncident ? 'block' : 'none';
+    document.getElementById('gen-go-btn').textContent = isIncident ? 'Generate Report' : 'Generate PDF';
+  }
+  const genTplEl = document.getElementById('gen-template');
+  genTplEl.onchange = function() { _updateGenDialog(this.value); };
+  _updateGenDialog(genTplEl.value);
 
   document.getElementById('gen-no-btn').onclick = () => overlay.remove();
   document.getElementById('gen-go-btn').onclick = () => {
@@ -94,7 +126,28 @@ async function generateQuickReport() {
     const agentParam = agent ? '&agent='+encodeURIComponent(agent) : '';
     const prefix = style === 'v2' ? '/generate/v2' : '/generate';
 
-    if (tpl === 'quick') {
+    if (tpl === 'incident') {
+      const fmt = document.getElementById('gen-fmt')?.value || 'pdf';
+      const periodParam = '?period=' + period;
+      if (fmt === 'excel') {
+        toast('Incident Excel export started (TheHive data)...','blue');
+        fetch(API+'/generate/incident/excel'+periodParam, {method:'POST'})
+          .then(r => { if(r.ok) return r.blob(); throw new Error('Failed'); })
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'incident_report_'+new Date().toISOString().slice(0,10)+'.xlsx';
+            a.click(); URL.revokeObjectURL(url);
+            toast('Incident Excel downloaded!','green');
+          }).catch(e => toast('❌ '+e.message,'red'));
+      } else {
+        toast('Incident Management Report generation started (TheHive data)...','blue');
+        fetch(API+'/generate/incident'+periodParam, {method:'POST'}).then(r=>r.json()).then(r => {
+          if (r.download_url) { toast('Incident report ready!','green'); loadReports(); showTab('reports'); }
+          else { toast('❌ '+(r.detail||r.error||'Failed'),'red'); }
+        }).catch(e => toast('❌ '+e.message,'red'));
+      }
+    } else if (tpl === 'quick') {
       toast('📄 Quick report generation started...','blue');
       fetch(API+prefix+'/quick?period='+period+agentParam, {method:'POST'}).then(r=>r.json()).then(r => {
         if (r.download_url) { toast('✅ Report ready!','green'); loadReports(); }
@@ -313,7 +366,7 @@ async function loadReports() {
   r.reports.forEach((rpt,i) => {
     html += `<tr class="${i%2?'bg-gray-50':''}">
       <td class="p-3 font-medium">${rpt.filename}</td>
-      <td class="p-3">${rpt.template_name||'-'}</td>
+      <td class="p-3">${rpt.template_id==='incident'?'Incident Management Report':(rpt.template_name||'-')}</td>
       <td class="p-3 text-xs">${rpt.period_from||'-'} → ${rpt.period_to||'-'}</td>
       <td class="p-3 text-xs">${rpt.generated_at}</td>
       <td class="p-3 text-right text-xs">${rpt.file_size ? (rpt.file_size/1024).toFixed(0)+'KB' : '-'}</td>
@@ -345,7 +398,7 @@ async function loadReports() {
       for(const rpt of r.reports) {
         await fetch(API+'/reports/'+rpt.id, {method:'DELETE'});
       }
-      showPage('reports');
+      showTab('reports');
     });
   }
 }

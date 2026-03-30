@@ -3,6 +3,22 @@
   "nodes": [
     {
       "parameters": {
+        "httpMethod": "POST",
+        "path": "21219720-0300-4e29-8408-ea4b3a759e96",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1088,
+        704
+      ],
+      "id": "e4157a25-420a-467e-bdc9-4e922cd79f9c",
+      "name": "Webhook1",
+      "webhookId": "21219720-0300-4e29-8408-ea4b3a759e96"
+    },
+    {
+      "parameters": {
         "fromEmail": "siemalertmail@gmail.com",
         "toEmail": "naveen@codesecure.in,bmdoke@pansegroup.com",
         "subject": "Wazuh SIEM Alert ",
@@ -14,11 +30,11 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        416,
-        64
+        896,
+        528
       ],
-      "id": "e8a1db82-44fc-4f57-8557-539d063ed391",
-      "name": "Send email",
+      "id": "f9e7dd01-c058-4117-b3e7-f082952d0385",
+      "name": "Send email1",
       "webhookId": "80fbb052-8acf-4fce-bbd6-d248dc9f36c1",
       "credentials": {
         "smtp": {
@@ -36,11 +52,11 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -576,
-        208
+        -416,
+        768
       ],
-      "id": "1b2cb495-8136-48ef-8481-43414b5fb535",
-      "name": "Redis",
+      "id": "1153622a-40ee-47d8-885e-fcddc2b1c01a",
+      "name": "Redis2",
       "alwaysOutputData": false,
       "credentials": {
         "redis": {
@@ -78,27 +94,27 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -336,
-        208
+        -176,
+        752
       ],
-      "id": "96f13682-88a2-4239-a950-10629c73e3ff",
-      "name": "If1"
+      "id": "cd75e82c-9641-43e1-a724-66ea7a70f08a",
+      "name": "If"
     },
     {
       "parameters": {
         "operation": "set",
-        "key": "={{ $('set_field').first().json.cache_key }}",
+        "key": "={{ $('set_field1').first().json.cache_key }}",
         "value": "sent",
         "expire": true
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -112,
-        208
+        48,
+        736
       ],
-      "id": "fe72929a-5857-41d6-abb3-903d85cfbf00",
-      "name": "Redis1",
+      "id": "8f720975-0eee-4249-82c7-8ce0c78eeb73",
+      "name": "Redis3",
       "credentials": {
         "redis": {
           "id": "e6OLOQ2dqQptV417",
@@ -113,11 +129,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -944,
-        240
+        -832,
+        736
       ],
-      "id": "e710b258-0a3f-497b-b265-38d247a8a2db",
-      "name": "field_map"
+      "id": "076f3f66-4cca-4f95-91e5-920e4b2e6903",
+      "name": "field_map1"
     },
     {
       "parameters": {
@@ -137,11 +153,11 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -752,
-        224
+        -608,
+        768
       ],
-      "id": "964d9a21-d010-4630-b5ae-25af4bd5cd0f",
-      "name": "set_field"
+      "id": "8fc5f3d5-667c-4e96-86ef-2aaece24311f",
+      "name": "set_field1"
     },
     {
       "parameters": {
@@ -150,317 +166,68 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        224,
-        64
+        688,
+        560
       ],
-      "id": "06e2491c-7609-4b8c-93b2-ce6dbeabb91f",
-      "name": "table"
+      "id": "e3ee72b8-c0f3-4b26-b249-02fe4e318264",
+      "name": "table1"
     },
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "={{ $('field_map').first().json }}",
+        "jsonOutput": "={{ $('field_map1').first().json }}",
         "options": {}
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        64,
-        192
+        240,
+        736
       ],
-      "id": "00cd0047-b077-4548-9598-c528c8ad0a49",
-      "name": "Edit Fields"
+      "id": "e164050c-0611-4456-8d34-c9b617feaca3",
+      "name": "Edit Fields1"
     },
     {
       "parameters": {
-        "alertFields": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "title": "=[{{ $json.severity_label }}] {{ $json.alert_title }}",
-            "source": "={{ $json.source }}",
-            "type": "={{ $json.event_type }}",
-            "description": "=Wazuh Alert | {{ $json.alert_title }} | Agent: {{ $json.agent.name }} ({{ $json.agent.ip }}) | Rule: {{ $json.rule_id }} | Level: {{ $json.rule_level }}",
-            "sourceRef": "=wazuh_{{ $json.rule_id }}_{{ $json.agent.name }}_{{ DateTime.now().toFormat('yyyyMMdd_HHmmss') }}",
-            "severity": "={{ $json.rule_level >= 15 ? 4 : $json.rule_level >= 12 ? 3 : $json.rule_level >= 7 ? 2 : 1 }}",
-            "summary": "=🔴 Wazuh Alert Summary\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Rule ID     : {{ $json.rule_id }}\n📋 Rule Desc   : {{ $json.all_fields.rule.description }}\n🌐 Rule Group  : {{ $json.all_fields.rule.groups }}\n⚠️ Severity    : Level {{ $json.rule_level }} - {{ $json.severity_label }}\n🖥️ Agent       : {{ $json.agent.name }} - {{ $json.agent.ip }}\n🕐 Timestamp   : {{ $json.timestamp }}\n🎯 MITRE       : {{ $json.all_fields.rule.mitre?.technique }}\n📍 Location    : {{ $json.location }}\n📁 Full Log    : {{ $json.alert_text }}\n",
-            "flag": "={{ $json.rule_level >= 12 }}",
-            "tags": "={{ ($json.all_fields.rule.groups || []).concat($json.all_fields.rule.mitre?.technique || []) }}",
-            "tlp": "={{ $json.rule_level >= 12 ? 3 : 2 }}",
-            "pap": 2
-          },
-          "matchingColumns": [],
-          "schema": [
+        "jsCode": "const d = $input.first().json;\n\n// Build observables array — only include entries where data is non-empty\nconst observables = [];\n\n// 1. Hostname (agent.name) — always present\nconst hostname = (d.agent && d.agent.name) ? String(d.agent.name).trim() : '';\nif (hostname) {\n  observables.push({\n    dataType: 'hostname',\n    data: hostname,\n    message: 'Affected agent/endpoint',\n    tags: ['wazuh-agent']\n  });\n}\n\n// 2. Source IP — check top-level src_ip first (set by custom-n8n.py),\n//    then fall back to nested all_fields paths\nconst srcIp = (\n  d.src_ip ||\n  (d.all_fields && d.all_fields.data && d.all_fields.data.srcip) ||\n  (d.all_fields && d.all_fields.data && d.all_fields.data['win.eventdata.ipAddress']) ||\n  ''\n).trim();\nif (srcIp && srcIp !== '0.0.0.0' && srcIp !== '::') {\n  observables.push({\n    dataType: 'ip',\n    data: srcIp,\n    message: 'Source IP from Wazuh alert',\n    tags: ['source-ip']\n  });\n}\n\n// 2b. Destination IP — check top-level dst_ip (also set by custom-n8n.py)\nconst dstIp = (d.dst_ip || '').trim();\nif (dstIp && dstIp !== '0.0.0.0' && dstIp !== '::') {\n  observables.push({\n    dataType: 'ip',\n    data: dstIp,\n    message: 'Destination IP from Wazuh alert',\n    tags: ['dest-ip']\n  });\n}\n\n// 3. Agent IP — skip if empty or 'any'\nconst agentIp = (d.agent && d.agent.ip) ? String(d.agent.ip).trim() : '';\nif (agentIp && agentIp !== '' && agentIp !== 'any' && agentIp !== '0.0.0.0') {\n  observables.push({\n    dataType: 'ip',\n    data: agentIp,\n    message: 'Agent IP address',\n    tags: ['agent-ip']\n  });\n}\n\n// Compute severity level (1-4)\nconst ruleLevel = parseInt(d.rule_level || d.all_fields?.rule?.level || 0);\nconst severity = ruleLevel >= 15 ? 4 : ruleLevel >= 12 ? 3 : ruleLevel >= 7 ? 2 : 1;\n\n// Build tags from rule groups + MITRE technique\nconst ruleTags = Array.isArray(d.all_fields?.rule?.groups) ? d.all_fields.rule.groups : [];\nconst mitreTags = Array.isArray(d.all_fields?.rule?.mitre?.technique) ? d.all_fields.rule.mitre.technique : [];\nconst allTags = [...new Set([...ruleTags, ...mitreTags])];\n\n// Source ref with timestamp (yyyyMMdd_HHmmss)\nconst now = new Date();\nconst ts = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 15);\nconst sourceRef = `wazuh_${d.rule_id}_${hostname}_${ts}`;\n\n// Build full alert payload\nconst payload = {\n  title: `[${d.severity_label || 'Alert'}] ${d.alert_title || d.rule_id}`,\n  source: d.source || 'wazuh',\n  type: d.event_type || 'alert',\n  description: `Wazuh Alert | ${d.alert_title} | Agent: ${hostname} (${agentIp || 'N/A'}) | Rule: ${d.rule_id} | Level: ${ruleLevel}`,\n  sourceRef: sourceRef,\n  severity: severity,\n  summary: `🔴 Wazuh Alert Summary\\n━━━━━━━━━━━━━━━━━━━━━━\\n📌 Rule ID     : ${d.rule_id}\\n📋 Rule Desc   : ${d.all_fields?.rule?.description || 'N/A'}\\n🌐 Rule Group  : ${ruleTags.join(', ') || 'N/A'}\\n⚠️ Severity    : Level ${ruleLevel} - ${d.severity_label || 'N/A'}\\n🖥️ Agent       : ${hostname} - ${agentIp || 'N/A'}\\n🕐 Timestamp   : ${d.timestamp}\\n🎯 MITRE       : ${mitreTags.join(', ') || 'N/A'}\\n📍 Location    : ${d.location || 'N/A'}\\n📁 Full Log    : ${d.alert_text || 'N/A'}\\n`,\n  flag: ruleLevel >= 12,\n  tags: allTags,\n  tlp: ruleLevel >= 12 ? 3 : 2,\n  pap: 2,\n  observables: observables\n};\n\nconsole.log(`Built ${observables.length} observable(s) for alert: ${payload.title}`);\n\nreturn [{ json: { _alert_payload: payload } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        784
+      ],
+      "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+      "name": "Build Alert Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://thehive:9000/api/v1/alert",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "theHiveProjectApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "displayName": "Title",
-              "id": "title",
-              "type": "string",
-              "removed": false,
-              "required": true,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Description",
-              "id": "description",
-              "type": "string",
-              "removed": false,
-              "required": true,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Type",
-              "id": "type",
-              "type": "string",
-              "removed": false,
-              "required": true,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Source",
-              "id": "source",
-              "type": "string",
-              "removed": false,
-              "required": true,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Source Reference",
-              "id": "sourceRef",
-              "type": "string",
-              "removed": false,
-              "required": true,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "External Link",
-              "id": "externalLink",
-              "type": "string",
-              "removed": true,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Severity (Severity of information)",
-              "id": "severity",
-              "type": "options",
-              "options": [
-                {
-                  "name": "Low",
-                  "value": 1
-                },
-                {
-                  "name": "Medium",
-                  "value": 2
-                },
-                {
-                  "name": "High",
-                  "value": 3
-                },
-                {
-                  "name": "Critical",
-                  "value": 4
-                }
-              ],
-              "removed": false,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Date",
-              "id": "date",
-              "type": "dateTime",
-              "removed": true,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Tags",
-              "id": "tags",
-              "type": "string",
-              "removed": false,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Follow",
-              "id": "follow",
-              "type": "boolean",
-              "removed": true,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Flag",
-              "id": "flag",
-              "type": "boolean",
-              "removed": false,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "TLP (Confidentiality of information)",
-              "id": "tlp",
-              "type": "options",
-              "options": [
-                {
-                  "name": "White",
-                  "value": 0
-                },
-                {
-                  "name": "Green",
-                  "value": 1
-                },
-                {
-                  "name": "Amber",
-                  "value": 2
-                },
-                {
-                  "name": "Red",
-                  "value": 3
-                }
-              ],
-              "removed": false,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "PAP (Level of exposure of information)",
-              "id": "pap",
-              "type": "options",
-              "options": [
-                {
-                  "name": "White",
-                  "value": 0
-                },
-                {
-                  "name": "Green",
-                  "value": 1
-                },
-                {
-                  "name": "Amber",
-                  "value": 2
-                },
-                {
-                  "name": "Red",
-                  "value": 3
-                }
-              ],
-              "removed": false,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Summary",
-              "id": "summary",
-              "type": "string",
-              "removed": false,
-              "required": false,
-              "display": true,
-              "defaultMatch": false
-            },
-            {
-              "displayName": "Status",
-              "id": "status",
-              "type": "options",
-              "removed": true,
-              "required": false,
-              "display": true,
-              "defaultMatch": false,
-              "options": [
-                {
-                  "name": "Duplicate",
-                  "value": "Duplicate",
-                  "description": "Stage: Closed"
-                },
-                {
-                  "name": "FalsePositive",
-                  "value": "FalsePositive",
-                  "description": "Stage: Closed"
-                },
-                {
-                  "name": "Ignored",
-                  "value": "Ignored",
-                  "description": "Stage: Closed"
-                },
-                {
-                  "name": "Imported",
-                  "value": "Imported",
-                  "description": "Stage: Imported"
-                },
-                {
-                  "name": "InProgress",
-                  "value": "InProgress",
-                  "description": "Stage: InProgress"
-                },
-                {
-                  "name": "New",
-                  "value": "New",
-                  "description": "Stage: New"
-                },
-                {
-                  "name": "Pending",
-                  "value": "Pending",
-                  "description": "Stage: InProgress"
-                }
-              ]
-            },
-            {
-              "displayName": "Case Template",
-              "id": "caseTemplate",
-              "type": "options",
-              "removed": true,
-              "required": false,
-              "display": true,
-              "defaultMatch": false,
-              "options": []
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "observableUi": {
-          "values": [
-            {
-              "dataType": "hostname",
-              "data": "={{ $json.agent.name }}",
-              "message": "Affected agent/endpoint",
-              "tags": ["wazuh-agent"]
-            },
-            {
-              "dataType": "ip",
-              "data": "={{ $json.all_fields.data.srcip || $json.all_fields.data[\"win.eventdata.ipAddress\"] || \"\" }}",
-              "message": "Source IP from Wazuh alert",
-              "tags": ["source-ip"]
-            },
-            {
-              "dataType": "ip",
-              "data": "={{ $json.agent.ip || \"\" }}",
-              "message": "Agent IP address",
-              "tags": ["agent-ip"]
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
-        }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json._alert_payload }}",
+        "options": {}
       },
-      "type": "n8n-nodes-base.theHiveProject",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        304,
-        336
+        656,
+        784
       ],
-      "id": "c626f02a-050a-4af0-ac07-265dda3e70f9",
-      "name": "Create an alert",
+      "id": "d4e5f6a7-b8c9-0123-def0-456789012345",
+      "name": "Create Alert (TheHive)",
       "credentials": {
         "theHiveProjectApi": {
           "id": "lNFzPeokhx3NP1Nv",
@@ -470,110 +237,149 @@
     },
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "21219720-0300-4e29-8408-ea4b3a759e96",
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0316159c-81fc-4441-b90a-7691ed05f201",
+              "leftValue": "={{ $json.all_fields.rule.level }}",
+              "rightValue": 12,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
         "options": {}
       },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
       "position": [
-        -1152,
-        208
+        416,
+        576
       ],
-      "id": "e4157a25-420a-467e-bdc9-4e922cd79f9c",
-      "name": "Webhook1",
-      "webhookId": "21219720-0300-4e29-8408-ea4b3a759e96"
+      "id": "78a7f9f3-b78b-4aa2-8d3f-e89facb9d529",
+      "name": "If2"
     }
   ],
   "pinData": {},
   "connections": {
-    "Redis": {
-      "main": [
-        [
-          {
-            "node": "If1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "If1": {
-      "main": [
-        [
-          {
-            "node": "Redis1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Redis1": {
-      "main": [
-        [
-          {
-            "node": "Edit Fields",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "field_map": {
-      "main": [
-        [
-          {
-            "node": "set_field",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "set_field": {
-      "main": [
-        [
-          {
-            "node": "Redis",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "table": {
-      "main": [
-        [
-          {
-            "node": "Send email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Edit Fields": {
-      "main": [
-        [
-          {
-            "node": "table",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Create an alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Webhook1": {
       "main": [
         [
           {
-            "node": "field_map",
+            "node": "field_map1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis2": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Redis3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis3": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "field_map1": {
+      "main": [
+        [
+          {
+            "node": "set_field1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set_field1": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "table1": {
+      "main": [
+        [
+          {
+            "node": "Send email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Build Alert Payload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Alert Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Alert (TheHive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "table1",
             "type": "main",
             "index": 0
           }
@@ -590,7 +396,7 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "598d44b0-565e-4626-972b-a7cc642fe918",
+  "versionId": "3aff265g-d587-596c-9172-5d3c789ef622",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "c2ebe46a2fd80a296ac436b1f9c29895040c59d2e88780d264236c2a31a741e6"
